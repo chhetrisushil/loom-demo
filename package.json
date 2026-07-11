@@ -1,0 +1,46 @@
+{
+  "name": "migration-guard",
+  "version": "0.0.1",
+  "description": "Schema Migration Guard — a cloud-DB agentic demo built on the Loom kernel: inspect a table, ask Gemini to rate migration risk, pause for a human DBA on risky changes, then apply. One flow, two surfaces (headless terminal + React UI). Consumes the sibling ../loom packages via link: deps.",
+  "private": true,
+  "scripts": {
+    "gen": "loom gen --dir app",
+    "build": "tsc --build",
+    "start": "tsx src/main.ts",
+    "dev": "vite",
+    "build:ui": "vite build",
+    "test": "vitest run",
+    "demo:stub": "cp app/flows/migration-guard/flow.stub.txt app/flows/migration-guard/flow.ts",
+    "demo:restore": "git checkout -- app/flows/migration-guard/flow.ts",
+    "clean": "rm -rf dist .data tsconfig.tsbuildinfo"
+  },
+  "dependencies": {
+    "@loom/app": "link:../loom/packages/app",
+    "@loom/core": "link:../loom/packages/core",
+    "@loom/dispatcher": "link:../loom/packages/dispatcher",
+    "@loom/effect-runtime": "link:../loom/packages/effect-runtime",
+    "@loom/event-runtime": "link:../loom/packages/event-runtime",
+    "@loom/llm": "link:../loom/packages/llm",
+    "@loom/middleware": "link:../loom/packages/middleware",
+    "@loom/projection-runtime": "link:../loom/packages/projection-runtime",
+    "@loom/renderer-react": "link:../loom/packages/renderer-react",
+    "@loom/snapshot-runtime": "link:../loom/packages/snapshot-runtime",
+    "@loom/worker-runtime-local": "link:../loom/packages/worker-runtime-local",
+    "@loom/workflow-runtime": "link:../loom/packages/workflow-runtime",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@loom/cli": "link:../loom/packages/cli",
+    "@loom/testing": "link:../loom/packages/testing",
+    "@types/node": "^22.0.0",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.3",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10",
+    "vitest": "^2.1.8"
+  }
+}
