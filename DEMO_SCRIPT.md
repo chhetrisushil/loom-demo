@@ -173,6 +173,11 @@ pnpm exec loom logs   --db .data/events.db <executionId>
 
 **SAY:** *"I added zero observability code. This is the same log the flow already writes."*
 
+**DO** *(optional — proof it's all real & repeatable):*
+```bash
+pnpm test        # 3 green: risky→gate→approve→applied · reject→not applied · low-risk→auto
+```
+
 **DO** (the wow — time-travel):
 ```bash
 pnpm exec loom debug --db .data/events.db <executionId> --at 6
