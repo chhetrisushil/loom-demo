@@ -1,11 +1,12 @@
 import { migrationGuardFlow } from "../app/flows/migration-guard/flow";
+import { sqliteStorage } from "@loom/plugin-sqlite";
 import { buildApp, type LoomApp } from "./config";
 
 // A tiny end-to-end driver: start the flow, let it pause at the human gate, then
 // resume it with a decision — persisting to SQLite so the `loom` CLI can inspect
 // the durable log (`loom logs`, `loom debug`, `loom inspect`).
 async function main(): Promise<void> {
-  const app = buildApp({ storage: { kind: "sqlite", dir: ".data" } });
+  const app = buildApp({ storage: sqliteStorage({ dir: ".data" }) });
 
   const handle = await app.runtime.start(migrationGuardFlow, {
     table: "orders",

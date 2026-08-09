@@ -29,12 +29,15 @@ importers:
       '@loom/middleware':
         specifier: link:../loom/packages/middleware
         version: link:../loom/packages/middleware
+      '@loom/plugin-renderer-react':
+        specifier: link:../loom/plugins/renderer-react
+        version: link:../loom/plugins/renderer-react
+      '@loom/plugin-sqlite':
+        specifier: link:../loom/plugins/sqlite
+        version: link:../loom/plugins/sqlite
       '@loom/projection-runtime':
         specifier: link:../loom/packages/projection-runtime
         version: link:../loom/packages/projection-runtime
-      '@loom/renderer-react':
-        specifier: link:../loom/packages/renderer-react
-        version: link:../loom/packages/renderer-react
       '@loom/snapshot-runtime':
         specifier: link:../loom/packages/snapshot-runtime
         version: link:../loom/packages/snapshot-runtime
@@ -55,11 +58,11 @@ importers:
         version: 3.25.76
     devDependencies:
       '@loom/cli':
-        specifier: link:../loom/packages/cli
-        version: link:../loom/packages/cli
+        specifier: link:../loom/tools/cli
+        version: link:../loom/tools/cli
       '@loom/testing':
-        specifier: link:../loom/packages/testing
-        version: link:../loom/packages/testing
+        specifier: link:../loom/tools/testing
+        version: link:../loom/tools/testing
       '@types/node':
         specifier: ^22.0.0
         version: 22.20.1

@@ -93,7 +93,15 @@ const applyStep = step$({
 // ⌨️  LIVE-CODE THIS in Act 2. The three beats:
 //   1. inspect → ctx.ui.merge the table stats
 //   2. assess (real Gemini) → ctx.ui.merge the verdict
-//   3. low risk? apply. else ctx.ui.set("phase","awaiting-approval") + ctx.suspend, then apply.
+//   3. low risk? apply. else ctx.ui.set("phase","awaiting-approval") +
+//      `await ctx.suspend<ApprovalDecision>({ on: "ApprovalGranted", correlationKey: input.table })`,
+//      then apply. The gate's contract is declared in `resumeSchemas` below.
+// The approval gate's resume contract. Declared once: listed in `resumeSchemas` so the runtime
+// parses a resume BEFORE appending it (loom ADR 0077) — a wrongly-shaped approval is refused
+// rather than becoming a permanent fold input — and inferred back into the type the runner sees.
+const ApprovalDecision = z.object({ approved: z.boolean(), approvedBy: z.string() });
+type ApprovalDecision = z.infer<typeof ApprovalDecision>;
+
 const runner: FlowRunner<In, Out> = async (ctx, input) => {
   throw new Error("runner not implemented — live-code me (see DEMO_SCRIPT.md, Act 2)");
 };
@@ -107,6 +115,7 @@ export const migrationGuardFlow = {
     inputSchema: MigrationInput,
     outputSchema: MigrationOutput,
     steps: [inspectStep, assessStep, applyStep],
+    resumeSchemas: { ApprovalGranted: ApprovalDecision },
   }),
   runner,
 } as RegisteredFlow;

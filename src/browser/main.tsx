@@ -1,4 +1,4 @@
-import { LoomProvider } from "@loom/renderer-react";
+import { LoomProvider } from "@loom/plugin-renderer-react";
 import { createRoot } from "react-dom/client";
 import { buildApp } from "../config";
 import { App } from "./App";
