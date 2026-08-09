@@ -87,6 +87,12 @@ const applyStep = step$({
 });
 
 // ── Runner: plain async orchestration — this IS the agent, and it drives the UI ──
+// The approval gate's resume contract. Declared once: listed in `resumeSchemas` so the runtime
+// parses a resume BEFORE appending it (loom ADR 0077) — a wrongly-shaped approval is refused
+// rather than becoming a permanent fold input — and inferred back into the type the runner sees.
+const ApprovalDecision = z.object({ approved: z.boolean(), approvedBy: z.string() });
+type ApprovalDecision = z.infer<typeof ApprovalDecision>;
+
 const runner: FlowRunner<In, Out> = async (ctx, input) => {
   ctx.ui.set("phase", "inspecting");
   const stats = await ctx.run(inspectStep, input);
@@ -111,11 +117,11 @@ const runner: FlowRunner<In, Out> = async (ctx, input) => {
 
   // Durable human gate — persists to the log and hands control back until resumed.
   ctx.ui.set("phase", "awaiting-approval");
-  const decision = (await ctx.suspend({
+  const decision = await ctx.suspend<ApprovalDecision>({
     on: "ApprovalGranted",
     correlationKey: input.table,
     timeout: 24 * 60 * 60 * 1000,
-  })) as { approved: boolean; approvedBy: string };
+  });
 
   if (!decision.approved) {
     ctx.ui.set("phase", "rejected");
@@ -137,6 +143,7 @@ export const migrationGuardFlow = {
     inputSchema: MigrationInput,
     outputSchema: MigrationOutput,
     steps: [inspectStep, assessStep, applyStep],
+    resumeSchemas: { ApprovalGranted: ApprovalDecision },
   }),
   runner,
 } as RegisteredFlow;

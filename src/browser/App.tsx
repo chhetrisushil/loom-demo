@@ -1,4 +1,4 @@
-import { useProjection } from "@loom/renderer-react";
+import { useProjection } from "@loom/plugin-renderer-react";
 import React, { useCallback, useState } from "react";
 import { migrationGuardFlow } from "../../app/flows/migration-guard/flow";
 import type { LoomApp } from "../config";
