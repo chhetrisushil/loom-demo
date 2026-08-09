@@ -94,6 +94,10 @@ Point at the three steps as you name them:
 **DO:** type the `runner` (narrate each loom concept as it lands):
 
 ```typescript
+// The gate's contract — already in the stub, alongside `resumeSchemas` on the flow below it.
+const ApprovalDecision = z.object({ approved: z.boolean(), approvedBy: z.string() });
+type ApprovalDecision = z.infer<typeof ApprovalDecision>;
+
 const runner: FlowRunner<In, Out> = async (ctx, input) => {
   ctx.ui.set("phase", "inspecting");
   const stats = await ctx.run(inspectStep, input);
@@ -114,9 +118,9 @@ const runner: FlowRunner<In, Out> = async (ctx, input) => {
   }
 
   ctx.ui.set("phase", "awaiting-approval");
-  const decision = (await ctx.suspend({
+  const decision = await ctx.suspend<ApprovalDecision>({
     on: "ApprovalGranted", correlationKey: input.table, timeout: 24 * 60 * 60 * 1000,
-  })) as { approved: boolean; approvedBy: string };
+  });
 
   if (!decision.approved) {
     ctx.ui.set("phase", "rejected");
@@ -139,6 +143,11 @@ const runner: FlowRunner<In, Out> = async (ctx, input) => {
 - On `ctx.suspend(...)`: *"This is the whole human-in-the-loop story. One line. It writes a
   checkpoint to the log and hands control back. The process can restart, redeploy, move
   machines — when the approval arrives, it resumes from exactly here."*
+- On the `<ApprovalDecision>` type argument, if asked: *"That types what comes back at the gate.
+  The enforcement is the matching `resumeSchemas` entry on the flow — the runtime parses the
+  resume payload before it's appended, so a malformed approval is refused instead of becoming a
+  permanent part of the log. The type argument alone is erased; it's a claim, the schema is the
+  check."* (ADR 0077.)
 
 **DO:** point out there's no `try/catch`, no state machine, no queue. *"It reads like a script
 because it is one. That's loom's bet: plain async code, durability underneath."*
