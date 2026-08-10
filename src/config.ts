@@ -28,10 +28,12 @@ export function buildApp(opts?: { storage?: StorageOpt }): LoomApp {
     surfaces: SURFACES,
     flowModules,
     // Every effect (each step handler) gets exponential backoff + deterministic jitter.
-    effectMiddleware: [
-      retryMiddleware({ maxRetries: 3, baseDelayMs: 50, factor: 2, jitter: true }),
-    ],
+    execution: {
+      effectMiddleware: [
+        retryMiddleware({ maxRetries: 3, baseDelayMs: 50, factor: 2, jitter: true }),
+      ],
+    },
     // Static flow-graph checks at boot (missing effects, dangling capabilities).
-    validate: "warn",
+    checks: { validate: "warn" },
   });
 }
