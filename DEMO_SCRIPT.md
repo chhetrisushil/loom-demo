@@ -20,13 +20,18 @@ pnpm build                                      # headless typecheck — must be
 export GEMINI_API_KEY=<your Google AI Studio key>
 pnpm start                                      # warms the HTTP session; note the latency
 
-# 3. Reset so the CLI section starts clean
+# 3. Act 0 scaffolding tools on PATH (nothing here is published to npm — it all runs
+#    from the sibling loom checkout, so this works offline)
+export PATH="/Users/such/workspace/loom-demo/node_modules/.bin:$PATH"   # the `loom` CLI
+alias create-loom-app="node /Users/such/workspace/loom/tools/create-loom-app/dist/index.js"
+
+# 4. Reset so the CLI section starts clean
 rm -rf /Users/such/workspace/loom-demo/.data
 
-# 4. Terminals: (A) in loom-demo for headless+CLI, (B) free for vite.
+# 5. Terminals: (A) in loom-demo for headless+CLI, (B) free for vite.
 #    Browser tab ready on localhost:5173. Bump font sizes.
 
-# 5. Paste buffer: keep the finished app/flows/migration-guard/flow.ts handy in case
+# 6. Paste buffer: keep the finished app/flows/migration-guard/flow.ts handy in case
 #    you fat-finger the live-code section. Start that file from the STUB below.
 ```
 
@@ -53,22 +58,37 @@ debugging, and a UI — for free. Let me show you how fast you build one."*
 
 **DO** (in a throwaway dir — scaffolding show-and-tell, not the app we run):
 ```bash
-cd /tmp/loom-scratch                                    # empty dir
-npm create loom-app@latest my-app                       # ~10 files: config, a flow, tests
+cd /tmp/loom-scratch                       # empty dir
+create-loom-app my-app                     # 11 files: config, a greet flow, middleware, tests
 cd my-app
-pnpm exec loom new flow migration-guard                  # scaffolds app/flows/migration-guard/flow.ts
-pnpm exec loom gen --dir app                             # regenerates app/loom.gen.ts (static wiring)
+loom new flow migration-guard --dir app    # scaffolds app/flows/migration-guard/flow.ts
+loom gen --dir app                         # regenerates app/loom.gen.ts (static wiring)
 ```
+
+> ⚠️ **Do not run `npm create loom-app`.** That name on npm belongs to an unrelated project
+> (a React/Vue/Svelte scaffolder) and would generate someone else's app on stage. Loom's own
+> scaffolder is unpublished — use the `create-loom-app` alias from pre-flight step 3.
+>
+> Both commands need the pre-flight `PATH`/alias exports. `--dir app` is required on
+> `loom new`; without it the flow lands somewhere the later `loom gen` won't see.
 
 **SAY:** *"And because loom is AI-native, you don't even have to start from a blank file —"*
 
-**DO** (the flourish):
+**DO** (the flourish — **needs a model key; see the warning below**):
 ```bash
-pnpm exec loom appgen "Guard database migrations. Inspect the table. Use Gemini. Pause for approval. Generate UI."
+export ANTHROPIC_API_KEY=...   # or --model openai:<m> / gemini:<m>
+loom appgen "Guard database migrations. Inspect the table. Use Gemini. Pause for approval. Generate UI." --dry-run
+#   …then re-run with --apply to actually write the files
 ```
 Open one generated file.
 **SAY:** *"That sentence compiled to real, plain TypeScript — a flow with a suspend gate and
 a UI surface. No runtime magic, no DSL. You own this code."*
+
+> ⚠️ **With no model key, `appgen` does not fail — it silently degrades.** It prints
+> `plan: new project → . [deterministic]` and emits a *generic* 11-file scaffold whose flow is
+> named `app` — no suspend gate, no UI surface, nothing resembling your sentence. The narration
+> above would be a lie and someone will notice. Either rehearse this line with a real key, or
+> **cut it** (the "If something breaks" section already lists it as the first thing to drop).
 
 ---
 
