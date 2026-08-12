@@ -72,23 +72,17 @@ loom gen --dir app                         # regenerates app/loom.gen.ts (static
 > Both commands need the pre-flight `PATH`/alias exports. `--dir app` is required on
 > `loom new`; without it the flow lands somewhere the later `loom gen` won't see.
 
-**SAY:** *"And because loom is AI-native, you don't even have to start from a blank file —"*
+**SAY:** *"Ten seconds, and the wiring is done — now the interesting part is the agent itself."*
+(Roll straight into Act 1.)
 
-**DO** (the flourish — **needs a model key; see the warning below**):
-```bash
-export ANTHROPIC_API_KEY=...   # or --model openai:<m> / gemini:<m>
-loom appgen "Guard database migrations. Inspect the table. Use Gemini. Pause for approval. Generate UI." --dry-run
-#   …then re-run with --apply to actually write the files
-```
-Open one generated file.
-**SAY:** *"That sentence compiled to real, plain TypeScript — a flow with a suspend gate and
-a UI surface. No runtime magic, no DSL. You own this code."*
-
-> ⚠️ **With no model key, `appgen` does not fail — it silently degrades.** It prints
-> `plan: new project → . [deterministic]` and emits a *generic* 11-file scaffold whose flow is
-> named `app` — no suspend gate, no UI surface, nothing resembling your sentence. The narration
-> above would be a lie and someone will notice. Either rehearse this line with a real key, or
-> **cut it** (the "If something breaks" section already lists it as the first thing to drop).
+> 🚫 **`loom appgen` is deliberately not in this script.** An earlier draft opened with it
+> ("that sentence compiled to a flow with a suspend gate and a UI surface"). It does not fail
+> loudly when it can't deliver that — it falls back to a deterministic parser, exit 0, and
+> emits a *generic* scaffold whose flow is named `app`: no suspend gate, no UI surface. Both
+> routes into the fallback are verified: exporting a key without `--model` never calls the
+> model at all (and prints no warning); `--model` with a bad key prints `produced no valid
+> plan — used the deterministic parser`. Whether a valid key delivers the narrated result was
+> never confirmed. Don't reintroduce the line without checking the output for `[deterministic]`.
 
 ---
 
@@ -253,8 +247,8 @@ loom: you write the agent, the kernel gives you durability, observability, and a
   Say: *"loom's provider is pluggable — I'll flip to the offline reviewer."*
 - **Live-code typo:** paste the finished `flow.ts` from your buffer, keep moving.
 - **Vite shows 'new deps optimized' reload:** normal on first load; just wait for the re-render.
-- **Running long:** cut the `loom appgen` line (Act 0) and the `loom inspect` web view (Act 3);
-  the headline beats are the live-coded suspend and the Approve button.
+- **Running long:** cut the whole Act 0 scaffolding demo and the `loom inspect` web view
+  (Act 3); the headline beats are the live-coded suspend and the Approve button.
 
 ## Command cheat-sheet  (run from `loom-demo/`)
 
