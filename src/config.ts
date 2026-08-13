@@ -6,7 +6,8 @@ import { flowModules } from "../app/loom.gen";
 
 export type LoomApp = ReturnType<typeof defineConfig>;
 
-// `ctx.ui.*` in a flow targets the default A2UI surface, "ui".
+// `ctx.ui.*` in a flow targets the default agent surface, "ui" — loom's own patch protocol,
+// not the Google A2UI wire protocol (`@loom/plugin-a2ui` is the adapter for that).
 export const SURFACES = ["ui"];
 
 // The caller supplies a storage descriptor. `@loom/app` names no vendor (ADR 0043): a backend

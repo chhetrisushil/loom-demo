@@ -5,7 +5,7 @@ import { App } from "./App";
 
 // The SAME composition root the headless driver (src/main.ts) uses — only the
 // storage differs (in-memory in the browser). No flow code changes; we just wrap
-// the runtime in <LoomProvider> and render its A2UI surface with React.
+// the runtime in <LoomProvider> and render its agent surface with React.
 const app = buildApp({ storage: { kind: "memory" } });
 
 const root = document.getElementById("root");

@@ -151,9 +151,10 @@ const runner: FlowRunner<In, Out> = async (ctx, input) => {
 - On `ctx.run(...)`: *"A step is a durable unit of work. It's recorded to the log — on replay
   it's served from the log, never re-run. Exactly-once, for free."*
 - On `assessStep` / `ctx.run(assessStep, …)`: *"This is a real Gemini call. But notice loom
-  doesn't know it's Gemini — it's just an effect the kernel records. Loom ships Anthropic and
-  OpenAI; I added Gemini in ~25 lines by implementing one `complete()` method* (flash the
-  `src/llm.ts` file) *— and the flow didn't change a character."*
+  doesn't know it's Gemini — it's just an effect the kernel records. Loom ships Anthropic,
+  OpenAI and Gemini providers; I wrote this one myself in ~40 lines, by implementing one
+  `complete()` method* (flash the `src/llm.ts` file) *— and the flow didn't change a
+  character. That's the whole seam."*
 - On `ctx.suspend(...)`: *"This is the whole human-in-the-loop story. One line. It writes a
   checkpoint to the log and hands control back. The process can restart, redeploy, move
   machines — when the approval arrives, it resumes from exactly here."*

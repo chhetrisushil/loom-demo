@@ -48,9 +48,12 @@ pnpm dev                           # → http://localhost:5173
 
 ## The LLM seam (Gemini)
 
-Loom ships `AnthropicProvider` / `OpenAiProvider`; Gemini is a ~25-line
-`GeminiProvider implements LlmProvider` in `src/llm.ts`. The flow imports one `llm` — nothing
-downstream changes. It resolves the key per call:
+`@loom/llm` ships `AnthropicProvider`, `OpenAiProvider` **and** `GeminiProvider`. This demo
+deliberately hand-rolls its own — a ~40-line `GeminiProvider implements LlmProvider` in
+`src/llm.ts` — because the point is that the seam is one `complete()` method away from any
+backend, and a local one shows that in a file you can open on stage. Use the shipped provider in
+a real app; keep this one to see what a provider *is*. Either way the flow imports one `llm` and
+nothing downstream changes. It resolves the key per call:
 
 - **Headless:** `GEMINI_API_KEY` env var.
 - **Browser:** the key pasted into the form (sets `window.__GEMINI_API_KEY__`).
@@ -65,4 +68,4 @@ downstream changes. It resolves the key per call:
 | The event log is the moat | `loom logs` / `loom debug --at N` / `loom inspect` |
 | One brain, two surfaces (`P8`) | `src/main.ts` (terminal) vs `src/browser/` (React), same `buildApp` |
 | Provider-agnostic LLM edge (`P8`) | `src/llm.ts` — Gemini drop-in |
-| A2UI surface updates | `ctx.ui.set/merge` → `useProjection(runtime, "ui", executionId)` |
+| Agent-surface updates (not the Google A2UI wire protocol) | `ctx.ui.set/merge` → `useProjection(runtime, "ui", executionId)` |
