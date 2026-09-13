@@ -35,6 +35,18 @@ pnpm start
 #   ⏸  suspended at #10 — { phase: "awaiting-approval", assessment: { risk: "high", … } }
 #   ✅ completed — { applied: true, risk: "high", approvedBy: "ada@example.com" }
 
+# ── The money demo: survive a real process death ────────────────────
+pnpm pitch:reset                   # wipe .data first
+pnpm crash
+#   ⚡ EXECUTED inspect · ⚡ EXECUTED assess
+#   ⏸  SUSPENDED at #10 — waiting for a human DBA
+#   💀 SIGKILL — exit 137. No cleanup, no flush, no finally.
+pnpm resume                        # a BRAND NEW process, empty memory
+#   ⚡ EXECUTED apply           ← the ONLY step that runs
+#   🎉 completed — { applied: true, risk: 'high', approvedBy: 'ada@example.com' }
+#   inspect + assess did NOT re-run — served from the log. The model call was
+#   paid for exactly once, across a process death.
+
 # Time-travel the durable log (the run above persisted to SQLite):
 pnpm exec loom logs   --db .data/events.db <executionId>
 pnpm exec loom debug  --db .data/events.db <executionId> --at 6
@@ -69,3 +81,19 @@ nothing downstream changes. It resolves the key per call:
 | One brain, two surfaces (`P8`) | `src/main.ts` (terminal) vs `src/browser/` (React), same `buildApp` |
 | Provider-agnostic LLM edge (`P8`) | `src/llm.ts` — Gemini drop-in |
 | Agent-surface updates (not the Google A2UI wire protocol) | `ctx.ui.set/merge` → `useProjection(runtime, "ui", executionId)` |
+| **Crash-safety, demonstrated not asserted** | `pnpm crash` (SIGKILL) → `pnpm resume` (cold process) |
+
+## Proving memoization on stage
+
+`src/trace.ts` is a **stage prop, not a framework feature**. Each step handler calls
+`didRun()`, which prints a `⚡ EXECUTED` line *only when the handler actually runs*. A
+replayed effect is served from the event log and its handler is never invoked — so counting
+the lightning bolts is the proof:
+
+| | `inspect` | `assess` | `apply` |
+|---|---|---|---|
+| `pnpm crash` (process 1) | ⚡ | ⚡ | — |
+| `pnpm resume` (process 2, cold) | — | — | ⚡ |
+
+The second process never saw the migration start. It was handed `.data/events.db` and an
+execution id, and it finished the job — without re-paying for the model call.
