@@ -278,6 +278,22 @@ ctx.suspend(...)`."*
 > ⚠️ **Do not skip the `echo $?`.** Engineers will assume you caught a signal and shut down
 > cleanly. `137` is what proves you didn't.
 
+> 🎯 **"So who calls `resume` in production?"** — the sharpest question this act attracts, and
+> you should have the honest answer ready rather than improvising it:
+>
+> *"Here, me — I'm playing the supervisor. In a real deployment the dispatcher does it: a
+> worker that dies or wedges past its deadline is redispatched automatically, and the worker
+> resumes from durable state without re-running committed steps. That's ADR 0004 and it's
+> tested. What that doesn't cover is the supervisor itself dying, because the detection lives
+> in its process. For that, loom ships `recoverAbandoned()` — a maintenance pass you run from
+> a cron or a Kubernetes Job — and it makes you supply the 'is this orphaned?' predicate,
+> because a running execution on a healthy node looks identical in the log to an orphaned one.
+> Only your cluster knows the difference."*
+>
+> Do **not** claim the demo shows automatic recovery. It shows the *resume* is possible from a
+> cold process, which is the durability claim. Who triggers it is a separate, answerable
+> question — and answering it precisely is worth more than dodging it.
+
 ---
 
 ## Act 5 — Same brain, now a UI · 11:30–14:00
