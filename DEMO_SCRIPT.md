@@ -1,4 +1,4 @@
-# Live-Demo Script — Loom "Schema Migration Guard" (~15 min)
+# Live-Demo Script — Loom "Schema Migration Guard" (~14 min)
 
 Follow top to bottom. **SAY** = what you tell the room · **DO** = what you run/type ·
 **SEE** = what should appear. Everything here is verified working.
@@ -50,7 +50,7 @@ pnpm demo:restore    # git checkout flow.ts  → back to the finished version
 
 ---
 
-## Act 0 — The pitch + the DX wow · 0:00–2:00
+## Act 0 — The DX wow · 0:00–1:30  *(cuttable)*
 
 **SAY:** *"Loom is a durable kernel for agentic apps. The idea in one line: every action an
 agent takes is an event in a log. Once that's true, you get resume, replay, time-travel
@@ -103,7 +103,7 @@ Point at the three steps as you name them:
 
 ---
 
-## Act 2 — Live-code the runner · 2:00–9:00
+## Act 2 — Live-code the runner · 1:30–6:30
 
 **DO:** type the `runner` (narrate each loom concept as it lands):
 
@@ -169,7 +169,7 @@ because it is one. That's loom's bet: plain async code, durability underneath."*
 
 ---
 
-## Act 3 — Run it headless + time-travel the log · 9:00–12:00
+## Act 3 — Run it headless + time-travel the log · 6:30–9:00
 
 **DO** (terminal A, in `loom-demo`):
 ```bash
@@ -213,7 +213,74 @@ debugger for a distributed, days-long workflow."*  *(Optional: `pnpm exec loom i
 
 ---
 
-## Act 4 — Same brain, now a UI · 12:00–15:00
+## Act 4 — 💀 Kill the process · 9:00–11:30
+
+**This is the act that wins the room. Everything before it was a claim; this is the proof.**
+
+**SAY:** *"Everything so far ran in one process. Any framework can look durable if nothing
+ever dies. So let's kill it."*
+
+**DO** (terminal A):
+```bash
+pnpm pitch:reset      # rm -rf .data — start from an empty log
+pnpm crash
+```
+**SEE:**
+```
+   ⚡ EXECUTED  inspect  (table scan)   ← real work: time and money spent
+   ⚡ EXECUTED  assess   (LLM call)     ← real work: time and money spent
+
+⏸  SUSPENDED at event #10 — waiting for a human DBA
+   steps that really executed in THIS process: 2
+   executionId: 01M2...
+💀 SIGKILL — this process is going away now. Nothing gets to clean up.
+```
+
+**SAY:** *"Two steps really ran — note the lightning bolts, those only print when a handler
+actually executes. Then I sent this process `SIGKILL`. Not a graceful shutdown — signal 9.
+No cleanup handler, no flush, no `finally`. The process is gone."*
+
+**DO** — prove it's really dead, and that the state is on disk, not in RAM:
+```bash
+echo $?                 # 137  = 128 + 9. It was killed, not exited.
+ls -la .data/           # events.db — this is the entire state of that migration
+```
+
+**SAY:** *"Now a completely different process is going to finish the job. It never saw the
+migration start. All it gets is that file and an id."*
+
+**DO:**
+```bash
+pnpm resume
+```
+**SEE:**
+```
+🆕 COLD START — new process, empty memory.
+✅ DBA approves. Resuming…
+
+   ⚡ EXECUTED  apply    (writes to prod)   ← real work: time and money spent
+
+🎉 completed — { applied: true, risk: 'high', approvedBy: 'ada@example.com' }
+   steps that really executed in THIS process: 1
+   inspect + assess did NOT re-run — they were served from the log.
+```
+
+**SAY (land it slowly — point at the counts):** *"Two lightning bolts in the first process.
+**One** in the second. `inspect` and `assess` did not re-run — they were served from the log.
+The model call was paid for exactly once, across a process death. And look at the result: it
+still knows the risk was high and why — that assessment was written by a process that no
+longer exists, and rebuilt by folding the log."*
+
+**SAY:** *"That's the whole pitch in one command. I didn't write a checkpoint. I didn't write
+a retry. I didn't write a state machine. I wrote `await ctx.run(...)` and `await
+ctx.suspend(...)`."*
+
+> ⚠️ **Do not skip the `echo $?`.** Engineers will assume you caught a signal and shut down
+> cleanly. `137` is what proves you didn't.
+
+---
+
+## Act 5 — Same brain, now a UI · 11:30–14:00
 
 **DO** (terminal B, in `loom-demo`):
 ```bash
@@ -248,12 +315,18 @@ loom: you write the agent, the kernel gives you durability, observability, and a
   Say: *"loom's provider is pluggable — I'll flip to the offline reviewer."*
 - **Live-code typo:** paste the finished `flow.ts` from your buffer, keep moving.
 - **Vite shows 'new deps optimized' reload:** normal on first load; just wait for the re-render.
-- **Running long:** cut the whole Act 0 scaffolding demo and the `loom inspect` web view
-  (Act 3); the headline beats are the live-coded suspend and the Approve button.
+- **Running long:** cut Act 0 (scaffolding) first, then the `loom inspect` web view in Act 3,
+  then Act 5 (the UI). **Never cut Act 4** — the crash/resume is the single most persuasive
+  90 seconds in the talk, and the deck's closing slide asserts it happened.
+- **`pnpm resume` says the log is empty / no such execution:** you ran `pnpm pitch:reset`
+  after `pnpm crash` instead of before. Re-run `pnpm crash`, then `pnpm resume`.
 
 ## Command cheat-sheet  (run from `loom-demo/`)
 
 ```bash
+pnpm pitch:reset                               # wipe .data — always before `pnpm crash`
+pnpm crash                                     # run → suspend → SIGKILL (exit 137)
+pnpm resume                                    # COLD process finishes it from the log
 pnpm start                                     # headless run (suspend→resume→applied)
 pnpm exec loom logs   --db .data/events.db <id>
 pnpm exec loom debug  --db .data/events.db <id> --at 6

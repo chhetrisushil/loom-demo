@@ -1,7 +1,8 @@
 import { flow$, handler$, step$ } from "@loom/core";
 import type { FlowRunner, RegisteredFlow } from "@loom/workflow-runtime";
 import { z } from "zod";
-import { llm } from "../../../src/llm"; // export const llm — any LlmProvider works (Gemini here)
+import { llm } from "../../../src/llm";
+import { didRun } from "../../../src/trace"; // stage prop: prints only when a handler REALLY runs // export const llm — any LlmProvider works (Gemini here)
 
 // ── Schemas ───────────────────────────────────────────────────────────────────
 const MigrationInput = z.object({
@@ -34,6 +35,7 @@ const inspectStep = step$({
   inputSchema: MigrationInput,
   outputSchema: z.object({ rows: z.number(), sizeGb: z.number(), estLockSeconds: z.number() }),
   handler: handler$(async (input: In) => {
+    didRun("inspect  (table scan)");
     const rows = ROWS[input.change];
     return {
       rows,
@@ -56,6 +58,7 @@ const assessStep = step$({
   outputSchema: z.object({ risk: z.enum(["low", "medium", "high"]), rationale: z.string() }),
   handler: handler$(
     async (i: { table: string; change: string; rows: number; estLockSeconds: number }) => {
+      didRun("assess   (LLM call)");
       const res = await llm.complete({
         system:
           "You are a database migration safety reviewer. Reply ONLY with JSON " +
@@ -83,7 +86,10 @@ const applyStep = step$({
   name: "Apply migration",
   inputSchema: z.object({ table: z.string() }),
   outputSchema: z.object({ applied: z.boolean() }),
-  handler: handler$(async () => ({ applied: true })),
+  handler: handler$(async () => {
+    didRun("apply    (writes to prod)");
+    return { applied: true };
+  }),
 });
 
 // ── Runner: plain async orchestration — this IS the agent, and it drives the UI ──
