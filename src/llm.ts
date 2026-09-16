@@ -1,6 +1,6 @@
 import type { LlmProvider, LlmRequest, LlmResponse } from "@loom/llm";
 
-const DEFAULT_MODEL = "gemini-2.0-flash";
+const DEFAULT_MODEL = "models/gemini-3.6-flash";
 
 /**
  * A real Gemini provider in ~35 lines. loom's `LlmProvider` is a single
@@ -16,7 +16,9 @@ export class GeminiProvider implements LlmProvider {
   ) {}
 
   async complete(req: LlmRequest): Promise<LlmResponse> {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent?key=${this.apiKey}`;
+    // Accept either "gemini-x" or the API's canonical "models/gemini-x" form.
+    const model = this.model.startsWith("models/") ? this.model : `models/${this.model}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/${model}:generateContent?key=${this.apiKey}`;
     const res = await fetch(url, {
       method: "POST",
       headers: { "content-type": "application/json" },

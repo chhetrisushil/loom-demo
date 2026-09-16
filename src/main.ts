@@ -1,6 +1,7 @@
 import { migrationGuardFlow } from "../app/flows/migration-guard/flow";
 import { sqliteStorage } from "@loom/plugin-sqlite";
 import { buildApp, type LoomApp } from "./config";
+import { waitForGate } from "./gate";
 
 // A tiny end-to-end driver: start the flow, let it pause at the human gate, then
 // resume it with a decision — persisting to SQLite so the `loom` CLI can inspect
@@ -13,7 +14,7 @@ async function main(): Promise<void> {
     change: "add-index", // 48M rows, ~95s lock → high risk → pauses for approval
   });
 
-  const suspended = await handle.waitForSuspend();
+  const suspended = await waitForGate(handle);
   console.log(`⏸  suspended at #${suspended.sequence} —`, surface(app, handle.executionId));
 
   // …a DBA reviews and approves. Even if this process had restarted, the resume

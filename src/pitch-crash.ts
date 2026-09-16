@@ -3,6 +3,7 @@ import { migrationGuardFlow } from "../app/flows/migration-guard/flow";
 import { sqliteStorage } from "@loom/plugin-sqlite";
 import { buildApp, type LoomApp } from "./config";
 import { executedLabels } from "./trace";
+import { waitForGate } from "./gate";
 
 /**
  * ACT 3a — "the pod dies."
@@ -24,7 +25,7 @@ async function main(): Promise<void> {
     change: "add-index",
   });
 
-  const suspended = await handle.waitForSuspend();
+  const suspended = await waitForGate(handle);
 
   console.log(`\n⏸  SUSPENDED at event #${suspended.sequence} — waiting for a human DBA`);
   console.log("   surface:", surface(app, handle.executionId));
