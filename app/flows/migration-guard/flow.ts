@@ -126,7 +126,6 @@ const runner: FlowRunner<In, Out> = async (ctx, input) => {
   const decision = await ctx.suspend<ApprovalDecision>({
     on: "ApprovalGranted",
     correlationKey: input.table,
-    timeout: 24 * 60 * 60 * 1000,
   });
 
   if (!decision.approved) {

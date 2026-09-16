@@ -133,7 +133,7 @@ const runner: FlowRunner<In, Out> = async (ctx, input) => {
 
   ctx.ui.set("phase", "awaiting-approval");
   const decision = await ctx.suspend<ApprovalDecision>({
-    on: "ApprovalGranted", correlationKey: input.table, timeout: 24 * 60 * 60 * 1000,
+    on: "ApprovalGranted", correlationKey: input.table,
   });
 
   if (!decision.approved) {
@@ -152,7 +152,7 @@ const runner: FlowRunner<In, Out> = async (ctx, input) => {
   it's served from the log, never re-run. Exactly-once, for free."*
 - On `assessStep` / `ctx.run(assessStep, …)`: *"This is a real Gemini call. But notice loom
   doesn't know it's Gemini — it's just an effect the kernel records. Loom ships Anthropic,
-  OpenAI and Gemini providers; I wrote this one myself in ~40 lines, by implementing one
+  OpenAI and Gemini providers; I wrote this one myself in ~35 lines, by implementing one
   `complete()` method* (flash the `src/llm.ts` file) *— and the flow didn't change a
   character. That's the whole seam."*
 - On `ctx.suspend(...)`: *"This is the whole human-in-the-loop story. One line. It writes a
@@ -334,7 +334,7 @@ loom: you write the agent, the kernel gives you durability, observability, and a
 - **Running long:** cut Act 0 (scaffolding) first, then the `loom inspect` web view in Act 3,
   then Act 5 (the UI). **Never cut Act 4** — the crash/resume is the single most persuasive
   90 seconds in the talk, and the deck's closing slide asserts it happened.
-- **`pnpm resume` says the log is empty / no such execution:** you ran `pnpm pitch:reset`
+- **`pnpm resume` dies with `ENOENT … .data/last-execution.txt`:** you ran `pnpm pitch:reset`
   after `pnpm crash` instead of before. Re-run `pnpm crash`, then `pnpm resume`.
 
 ## Command cheat-sheet  (run from `loom-demo/`)
