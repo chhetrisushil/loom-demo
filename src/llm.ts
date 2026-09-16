@@ -3,10 +3,11 @@ import type { LlmProvider, LlmRequest, LlmResponse } from "@loom/llm";
 const DEFAULT_MODEL = "gemini-2.0-flash";
 
 /**
- * A real Gemini provider in ~25 lines. loom's `LlmProvider` is a single
+ * A real Gemini provider in ~35 lines. loom's `LlmProvider` is a single
  * `complete()` method, so any model backend drops in without touching the flow —
- * this is loom's provider-agnosticism (P8) made concrete. Talk track: "swapping
- * Anthropic → Gemini touched exactly this one file."
+ * this is loom's provider-agnosticism (P8) made concrete. loom ships its own
+ * Anthropic/OpenAI/Gemini providers; this hand-rolled one exists to show the seam.
+ * Talk track: "I implemented one method, and the flow didn't change a character."
  */
 export class GeminiProvider implements LlmProvider {
   constructor(
