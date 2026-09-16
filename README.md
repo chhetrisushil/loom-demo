@@ -50,7 +50,7 @@ pnpm resume                        # a BRAND NEW process, empty memory
 # Time-travel the durable log (the run above persisted to SQLite):
 pnpm exec loom logs   --db .data/events.db <executionId>
 pnpm exec loom debug  --db .data/events.db <executionId> --at 6
-pnpm exec loom inspect --db .data/events.db          # web timeline
+pnpm inspect                                         # web timeline on :35789
 
 # ── UI (React) — same core, different renderer ──────────────────────
 pnpm dev                           # → http://localhost:5173
