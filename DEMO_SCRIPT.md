@@ -326,6 +326,10 @@ loom: you write the agent, the kernel gives you durability, observability, and a
 
 ## 🔧 If something breaks
 
+- **`pnpm start` / `pnpm crash` prints `assess` four times, then `Error: Gemini 400/403/404 …`
+  and no `⏸ suspended` line:** the key in `GEMINI_API_KEY` is rejected (or the model name in
+  `src/llm.ts` is gone). The retry middleware tried 4× and the execution *failed* — it never
+  reached the gate. Fix the key, or use the next bullet.
 - **Gemini errors / network down:** clear the API-key field (UI) or `unset GEMINI_API_KEY`
   (headless) → the deterministic offline provider takes over and the demo still completes.
   Say: *"loom's provider is pluggable — I'll flip to the offline reviewer."*
