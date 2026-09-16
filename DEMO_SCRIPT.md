@@ -30,6 +30,9 @@ rm -rf /Users/such/workspace/loom-demo/.data
 
 # 5. Terminals: (A) in loom-demo for headless+CLI, (B) free for vite.
 #    Browser tab ready on localhost:5173. Bump font sizes.
+#    Ports are pinned so an SSH tunnel is stable: inspector 35789, vite 5173 (strict —
+#    it errors instead of drifting to 5174). Both bind 127.0.0.1. Presenting remotely:
+#      ssh -L 35789:127.0.0.1:35789 -L 5173:127.0.0.1:5173 <demo-box>
 
 # 6. Paste buffer: keep the finished app/flows/migration-guard/flow.ts handy in case
 #    you fat-finger the live-code section. Start that file from the STUB below.
@@ -208,8 +211,8 @@ pnpm exec loom debug --db .data/events.db <executionId> --at 6
 ```
 **SEE:** `status: running · sequence: 6 · frames: inspect: completed, assess: running`
 **SAY:** *"That's the execution's exact state at step 6 — reconstructed by folding the log. A
-debugger for a distributed, days-long workflow."*  *(Optional: `pnpm exec loom inspect --db
-.data/events.db` for the web timeline + slider.)*
+debugger for a distributed, days-long workflow."*  *(Optional: `pnpm inspect` → the web
+timeline + slider on http://localhost:35789.)*
 
 ---
 
@@ -350,6 +353,6 @@ pnpm resume                                    # COLD process finishes it from t
 pnpm start                                     # headless run (suspend→resume→applied)
 pnpm exec loom logs   --db .data/events.db <id>
 pnpm exec loom debug  --db .data/events.db <id> --at 6
-pnpm exec loom inspect --db .data/events.db
-pnpm dev                                       # UI on :5173
+pnpm inspect                                   # web timeline on :35789
+pnpm dev                                       # UI on :5173 (strict)
 ```

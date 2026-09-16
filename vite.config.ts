@@ -9,7 +9,10 @@ export default defineConfig({
   plugins: [react()],
   // The linked packages live in the sibling ../loom repo — let Vite read them, and dedupe
   // React so the app and @loom/plugin-renderer-react share one copy (no hook errors).
-  server: { fs: { allow: [".", "../loom"] } },
+  // Pinned for the presenter's SSH tunnel: fixed port, fail (don't drift to 5174) if it's
+  // busy, and bind IPv4 loopback — Vite's default "localhost" lands on [::1] only, so a
+  // tunnel aimed at 127.0.0.1 would reach the inspector (127.0.0.1:35789) but not the UI.
+  server: { host: "127.0.0.1", port: 5173, strictPort: true, fs: { allow: [".", "../loom"] } },
   resolve: { conditions: ["require", "default"], dedupe: ["react", "react-dom"] },
   optimizeDeps: {
     include: [
