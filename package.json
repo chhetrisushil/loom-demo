@@ -10,6 +10,7 @@
     "inspect": "loom inspect --db .data/events.db --port 35789",
     "crash": "tsx src/pitch-crash.ts",
     "resume": "tsx src/pitch-resume.ts",
+    "fork": "tsx src/pitch-fork.ts",
     "pitch:reset": "rm -rf .data",
     "dev": "vite",
     "build:ui": "vite build",
