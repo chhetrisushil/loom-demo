@@ -230,6 +230,12 @@ note: the policy decision is not the model call) and `quietTrace(true)`.
   by prefix, so the learnable and blind batches do not pollute each other in the one memory
   store.
 
+### Phases
+
+`UiState.phase` and the stepper's `PHASES` gain `simulated` (terminal phase of a dry-run branch,
+rendered like `applied` but labelled "simulated"). `apply` on the surface is typed as
+`{ strategy, chosenByPolicy, applied, lockSeconds, durationMinutes, reversible, policy? }`.
+
 ### Applied banner
 
 Shows strategy and projection; when `chosenByPolicy`, appends *"chosen by naive-eps v1 ·
