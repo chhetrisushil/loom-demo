@@ -15,7 +15,7 @@
 - The crash act stays policy-free: `src/main.ts` and `src/pitch-resume.ts` approve with `strategy: "direct-ddl"`.
 - The UI's Approve button sends **no** strategy; the policy chooses there.
 - Cost model, verbatim from the spec (m = rows / 1e6): direct-ddl lock `m`, duration `max(1, m/2)`, not reversible · online-ddl lock `2 + m/20`, duration `10 + 3m`, reversible · chunked lock `0`, duration `60 + 8m`, reversible. `reward = 1 − 0.7·min(1, lock/60) − 0.3·min(1, duration/240)`, rounded to 4 places.
-- Logging policy `naive-eps` v1: greedy `direct-ddl`, ε = 0.3, propensity `0.8` for the greedy arm and `0.1` for each other arm. Candidates: `size-aware` v2 (direct < 5M rows, online < 100M, chunked otherwise), `backwards` v0 (chunked < 5M, direct otherwise).
+- Logging policy `naive-eps` v1: greedy `direct-ddl`, ε = 0.5, propensity `2/3` (0.6667) for the greedy arm and `1/6` (0.1667) for each other arm. (ε was 0.3 in the first draft; with the naive arm already the worst on big tables, no control could score clearly below it — ε = 0.5 makes the backwards control clearly negative and lowers the estimator's variance.) Candidates: `size-aware` v2 (direct < 5M rows, online < 100M, chunked otherwise), `backwards` v0 (chunked < 5M, direct otherwise).
 - Batch size is 48 (12 per change type) on both surfaces. On stage, the propensity act shows ONE candidate and three numbers (`headline`); the control policy and full reports live behind `pnpm propensity --verbose` and a collapsed section in the tab. Stage wording is "how sure it was"; "propensity" is said once, at the end. Batch executions use an id prefix and are read back by prefix.
 - Branch names: `main`, `spec/<strategy>`, `commit`. The winner is the highest `reward`. Promotion is `branchRegistry.promote("commit", "main")`. There is no merge.
 - `.data/` is the crash demo's log. `pnpm propensity` uses `.data/learn/` and `.data/learn-blind/` and wipes them at start.
@@ -215,9 +215,9 @@ const ctx = { change: "add-index", rows: 48_000_000, risk: "high" };
 
 describe("the logging policy (naive-eps v1)", () => {
   it("reports the exact probability it chose with", () => {
-    expect(loggingPolicy.propensityOf("direct-ddl")).toBeCloseTo(0.8, 6);
-    expect(loggingPolicy.propensityOf("online-ddl")).toBeCloseTo(0.1, 6);
-    expect(loggingPolicy.propensityOf("chunked")).toBeCloseTo(0.1, 6);
+    expect(loggingPolicy.propensityOf("direct-ddl")).toBeCloseTo(2 / 3, 6);
+    expect(loggingPolicy.propensityOf("online-ddl")).toBeCloseTo(1 / 6, 6);
+    expect(loggingPolicy.propensityOf("chunked")).toBeCloseTo(1 / 6, 6);
     const sum = STRATEGIES.reduce((s, a) => s + loggingPolicy.propensityOf(a), 0);
     expect(sum).toBeCloseTo(1, 6);
   });
@@ -305,7 +305,7 @@ function mulberry32(seed: number): () => number {
 }
 
 // ── The LIVE policy: ε-greedy around what the flow used to do implicitly ───────
-const EPSILON = 0.3;
+const EPSILON = 0.5;
 const GREEDY: Strategy = "direct-ddl";
 
 export const loggingPolicy: Policy<Strategy> & { propensityOf(action: Strategy): number } = {
@@ -2248,7 +2248,7 @@ Run `pnpm dev` and open http://127.0.0.1:5173 (use the `run` skill or claude-in-
 1. Migration tab, `orders` / `add-index`, **Run migration** → stepper reaches `awaiting-approval`; three buttons: Approve, Reject, Explore strategies.
 2. **Explore strategies** → a board appears with three cards; each shows its own executionId, phase moving to `simulated`, lock/duration/score; the `spec/online-ddl` card is outlined green with "Promote (best score)". The parent stepper above still says `awaiting-approval`.
 3. **Promote (best score)** → a fourth card "commit (real apply)" reaches `applied`; the refs strip shows `main → <commit id>`; note says 4 branches, no merge.
-4. **New run**, run again, **Approve** → banner: "Migration applied via <strategy> … chosen by naive-eps v1 · propensity 0.80" (or 0.10).
+4. **New run**, run again, **Approve** → banner: "Migration applied via <strategy> … chosen by naive-eps v1 · propensity 0.67" (or 0.17).
 5. Learning tab, **Serve 48 migrations** → progress counts to 48; the card reads `48 carry how-sure-it-was`, the headline shows `steps evaluated 48`, an estimated value above the logged one, and a positive lift. Opening the details shows the coverage block, the full candidate report with `(snips)`, and the backwards control with a negative lift.
 6. Tick **log blind**, serve again → `0 carry how-sure-it-was`, headline `steps evaluated 0` / `cannot be estimated`, the blind moral line.
 

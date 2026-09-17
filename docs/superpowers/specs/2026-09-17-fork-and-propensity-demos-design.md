@@ -123,7 +123,7 @@ choose (that is what feeds the banner in §5).
 ## 2. `src/policy.ts` — the logging policy, the candidates, the blind toggle
 
 - **Logging policy** `naive-eps` v1: ε-greedy with the greedy arm `direct-ddl` (what today's
-  flow implicitly does) and ε = 0.3 uniform exploration over all three arms. It logs its **exact**
+  flow implicitly does) and ε = 0.5 uniform exploration over all three arms (0.3 in the first draft: the naive arm is already the worst on big tables, so no control could score clearly below it; 0.5 fixes that and lowers SNIPS variance). It logs its **exact**
   propensity: `1 - ε + ε/3` for the greedy arm, `ε/3` otherwise. Randomness comes from a seeded
   PRNG (`mulberry32`) held at module level — a stage prop, commented as such, so numbers on stage
   are stable. `select` is otherwise pure and cheap, as the `Policy` SPI requires.
