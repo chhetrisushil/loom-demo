@@ -11,6 +11,7 @@
     "crash": "tsx src/pitch-crash.ts",
     "resume": "tsx src/pitch-resume.ts",
     "fork": "tsx src/pitch-fork.ts",
+    "propensity": "tsx src/pitch-propensity.ts",
     "pitch:reset": "rm -rf .data",
     "dev": "vite",
     "build:ui": "vite build",
