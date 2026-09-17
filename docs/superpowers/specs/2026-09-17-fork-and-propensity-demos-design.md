@@ -95,9 +95,12 @@ The output schema gains `strategy`, `simulated`, `lockSeconds`, `durationMinutes
 The UI surface gains an `apply` key. The live-code stub (`flow.stub.txt`) and the Act 2 listing in
 `DEMO_SCRIPT.md` are updated to the new runner; the three talk-track lines are unchanged.
 
-**Side effect, deliberate:** `pnpm resume` now ends with the policy picking how to apply, so
-`loom logs` in Act 3 shows a `DECISION_RECORDED` carrying `context` and `policy.propensity`
-before Act V explains it.
+**The crash act stays as it is.** `pnpm resume` (and `src/main.ts`) approve with an explicit
+`strategy: "direct-ddl"` — the DBA says how — so no policy decision enters the crash demo's log
+and Act 3/4 narration is unchanged. The only visible difference is that the completed output
+gains `strategy` and the projection fields. The policy first appears in Act 4c (`pnpm
+propensity`) and in the UI, where the Approve button sends no strategy and lets the policy
+choose (that is what feeds the banner in §5).
 
 ## 2. `src/policy.ts` — the logging policy, the candidates, the blind toggle
 
@@ -278,4 +281,5 @@ log read.
 - Branch TTL / cleanup, per-branch placement, timers on forked gates (the gate has no timeout).
 - Training a policy from the log (the learning-router example does that); this demo only
   evaluates candidates.
-- Any change to the Gemini provider or the crash/resume scripts beyond their printed output.
+- Any change to the Gemini provider. The crash/resume scripts change only in passing an
+  explicit strategy and in their printed output.
