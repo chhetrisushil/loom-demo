@@ -26,6 +26,8 @@ cd loom-demo
 pnpm install       # links the sibling ../loom packages
 ```
 
+The sibling `../loom` checkout must be on branch `demo/fork-and-propensity` (or have it merged) — it's what exports the in-memory branch registry `pnpm fork` and the UI's Explore-strategies panel need.
+
 ## Run it
 
 ```bash
@@ -42,8 +44,9 @@ pnpm crash
 #   ⏸  SUSPENDED at #10 — waiting for a human DBA
 #   💀 SIGKILL — exit 137. No cleanup, no flush, no finally.
 pnpm resume                        # a BRAND NEW process, empty memory
-#   ⚡ EXECUTED apply           ← the ONLY step that runs
-#   🎉 completed — { applied: true, risk: 'high', approvedBy: 'ada@example.com' }
+#   ⚡ EXECUTED apply (writes to prod · direct-ddl)  ← the ONLY step that runs
+#   🎉 completed — { applied: true, simulated: false, risk: 'high', approvedBy: 'ada@example.com',
+#                     strategy: 'direct-ddl', projected: { lockSeconds: 48, durationMinutes: 24, reversible: false } }
 #   inspect + assess did NOT re-run — served from the log. The model call was
 #   paid for exactly once, across a process death.
 
@@ -51,6 +54,12 @@ pnpm resume                        # a BRAND NEW process, empty memory
 pnpm exec loom logs   --db .data/events.db <executionId>
 pnpm exec loom debug  --db .data/events.db <executionId> --at 6
 pnpm inspect                                         # web timeline on :35789
+
+# ── Fork the gate, simulate three strategies, promote one (no merge) ─
+pnpm fork
+# ── Score a policy that never ran, off the log; then show a blind log can't ─
+pnpm propensity
+pnpm exec loom learn report --db .data/learn/events.db
 
 # ── UI (React) — same core, different renderer ──────────────────────
 pnpm dev                           # → http://localhost:5173
@@ -82,6 +91,8 @@ nothing downstream changes. It resolves the key per call:
 | Provider-agnostic LLM edge (`P8`) | `src/llm.ts` — Gemini drop-in |
 | Agent-surface updates (not the Google A2UI wire protocol) | `ctx.ui.set/merge` → `useProjection(runtime, "ui", executionId)` |
 | **Crash-safety, demonstrated not asserted** | `pnpm crash` (SIGKILL) → `pnpm resume` (cold process) |
+| **Fork a live execution, simulate on real state, promote** | `src/fork.ts` → `pnpm fork` · Explore strategies in the tab |
+| **Decisions carry their propensity → counterfactual scoring** | `src/policy.ts` (`decideWithPolicy`) + `src/learn.ts` → `pnpm propensity` · Learning tab |
 
 ## Proving memoization on stage
 
@@ -94,6 +105,7 @@ the lightning bolts is the proof:
 |---|---|---|---|
 | `pnpm crash` (process 1) | ⚡ | ⚡ | — |
 | `pnpm resume` (process 2, cold) | — | — | ⚡ |
+| `pnpm fork` (3 branches + commit) | — | — | ⚡⚡⚡ + ⚡ |
 
 The second process never saw the migration start. It was handed `.data/events.db` and an
 execution id, and it finished the job — without re-paying for the model call.

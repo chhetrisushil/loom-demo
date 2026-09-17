@@ -1,4 +1,4 @@
-# Live-Demo Script — Loom "Schema Migration Guard" (~14 min)
+# Live-Demo Script — Loom "Schema Migration Guard" (~18 min)
 
 Follow top to bottom. **SAY** = what you tell the room · **DO** = what you run/type ·
 **SEE** = what should appear. Everything here is verified working.
@@ -10,6 +10,8 @@ Follow top to bottom. **SAY** = what you tell the room · **DO** = what you run/
 ```bash
 # 0. Layout: this project (loom-demo) sits next to the loom repo and links to it.
 #    Build loom once, off-camera:  cd ../loom && pnpm install && pnpm build
+#    The loom checkout must contain branch demo/fork-and-propensity (or its merge) —
+#    it exports the in-memory branch registry the UI needs.
 
 # 1. Everything installed & building (run once, off-camera)
 cd /Users/such/workspace/loom-demo
@@ -112,7 +114,13 @@ Point at the three steps as you name them:
 
 ```typescript
 // The gate's contract — already in the stub, alongside `resumeSchemas` on the flow below it.
-const ApprovalDecision = z.object({ approved: z.boolean(), approvedBy: z.string() });
+// The DBA may also say HOW (`strategy`) and whether to only dry-run it (`simulate`).
+const ApprovalDecision = z.object({
+  approved: z.boolean(),
+  approvedBy: z.string(),
+  strategy: z.enum(STRATEGIES).optional(),
+  simulate: z.boolean().optional(),
+});
 type ApprovalDecision = z.infer<typeof ApprovalDecision>;
 
 const runner: FlowRunner<In, Out> = async (ctx, input) => {
@@ -122,31 +130,62 @@ const runner: FlowRunner<In, Out> = async (ctx, input) => {
 
   ctx.ui.set("phase", "assessing");
   const verdict = await ctx.run(assessStep, {
-    table: input.table, change: input.change,
-    rows: stats.rows, estLockSeconds: stats.estLockSeconds,
+    table: input.table,
+    change: input.change,
+    rows: stats.rows,
+    estLockSeconds: stats.estLockSeconds,
   });
   ctx.ui.merge("assessment", verdict);
 
-  if (verdict.risk === "low") {
-    ctx.ui.set("phase", "applying");
-    await ctx.run(applyStep, { table: input.table });
-    ctx.ui.set("phase", "applied");
-    return { applied: true, risk: verdict.risk };
+  // Low-risk migrations ship straight through; everything else waits for a human.
+  let decision: ApprovalDecision | undefined;
+  if (verdict.risk !== "low") {
+    // Durable human gate — persists to the log and hands control back until resumed.
+    ctx.ui.set("phase", "awaiting-approval");
+    decision = await ctx.suspend<ApprovalDecision>({
+      on: "ApprovalGranted",
+      correlationKey: input.table,
+    });
+    if (!decision.approved) {
+      ctx.ui.set("phase", "rejected");
+      return { applied: false, simulated: false, risk: verdict.risk, approvedBy: decision.approvedBy };
+    }
   }
 
-  ctx.ui.set("phase", "awaiting-approval");
-  const decision = await ctx.suspend<ApprovalDecision>({
-    on: "ApprovalGranted", correlationKey: input.table,
+  // HOW to apply it: the DBA may say. Otherwise a policy decides — recorded with the
+  // context it saw and the probability it chose with, so a different policy can be
+  // scored against this log later without re-running anything.
+  const choice =
+    decision?.strategy !== undefined
+      ? { strategy: decision.strategy }
+      : await chooseStrategy(ctx, { change: input.change, rows: stats.rows, risk: verdict.risk });
+
+  ctx.ui.set("phase", "applying");
+  const result = await ctx.run(applyStep, {
+    table: input.table,
+    rows: stats.rows,
+    strategy: choice.strategy,
+    simulate: decision?.simulate ?? false,
+  });
+  ctx.ui.merge("apply", { ...choice, ...result });
+
+  // How it turned out — named after the decision when a policy made it, so credit lands there.
+  recordOutcome(ctx, {
+    key: choice.strategy,
+    score: reward(result),
+    ...(choice.policy !== undefined && { decisionId: "strategy" }),
   });
 
-  if (!decision.approved) {
-    ctx.ui.set("phase", "rejected");
-    return { applied: false, risk: verdict.risk, approvedBy: decision.approvedBy };
-  }
-  ctx.ui.set("phase", "applying");
-  await ctx.run(applyStep, { table: input.table });
-  ctx.ui.set("phase", "applied");
-  return { applied: true, risk: verdict.risk, approvedBy: decision.approvedBy };
+  const { applied, ...projected } = result;
+  ctx.ui.set("phase", applied ? "applied" : "simulated");
+  return {
+    applied,
+    simulated: !applied,
+    risk: verdict.risk,
+    ...(decision !== undefined && { approvedBy: decision.approvedBy }),
+    strategy: choice.strategy,
+    projected: projected satisfies Projection,
+  };
 };
 ```
 
@@ -166,6 +205,10 @@ const runner: FlowRunner<In, Out> = async (ctx, input) => {
   resume payload before it's appended, so a malformed approval is refused instead of becoming a
   permanent part of the log. The type argument alone is erased; it's a claim, the schema is the
   check."* (ADR 0077.)
+- On `decision?.strategy` / `chooseStrategy(...)`: *"There are three ways to apply a migration:
+  lock the table and just do it, copy-and-swap, or batch it slowly. The DBA can say which. If
+  they don't, a policy picks — through `ctx.decide`, so it's recorded once and replayed — and it
+  writes down one extra thing: how sure it was. Hold that thought."*
 
 **DO:** point out there's no `try/catch`, no state machine, no queue. *"It reads like a script
 because it is one. That's loom's bet: plain async code, durability underneath."*
@@ -183,7 +226,7 @@ pnpm start
 ⏸  suspended at #10 — { phase: 'awaiting-approval',
      table: { name:'orders', rows:48000000, sizeGb:9.6, estLockSeconds:95 },
      assessment: { risk:'high', rationale:'…' } }
-✅ completed — { applied: true, risk: 'high', approvedBy: 'ada@example.com' }
+✅ completed — { applied: true, simulated: false, risk: 'high', approvedBy: 'ada@example.com', strategy: 'direct-ddl', projected: { lockSeconds: 48, durationMinutes: 24, reversible: false } }
 Inspect it:  loom logs --db .data/events.db <executionId>
 ```
 **SAY:** *"It ran, hit the gate, suspended. My driver then approved it and it resumed to
@@ -202,7 +245,7 @@ pnpm exec loom logs   --db .data/events.db <executionId>
 
 **DO** *(optional — proof it's all real & repeatable):*
 ```bash
-pnpm test        # 3 green: risky→gate→approve→applied · reject→not applied · low-risk→auto
+pnpm test        # 22 green: strategies 4 · policy 5 · migration-guard 6 · fork 2 · learn 5
 ```
 
 **DO** (the wow — time-travel):
@@ -261,9 +304,9 @@ pnpm resume
 🆕 COLD START — new process, empty memory.
 ✅ DBA approves. Resuming…
 
-   ⚡ EXECUTED  apply    (writes to prod)   ← real work: time and money spent
+   ⚡ EXECUTED  apply    (writes to prod · direct-ddl)   ← real work: time and money spent
 
-🎉 completed — { applied: true, risk: 'high', approvedBy: 'ada@example.com' }
+🎉 completed — { applied: true, simulated: false, risk: 'high', approvedBy: 'ada@example.com', strategy: 'direct-ddl', projected: { lockSeconds: 48, durationMinutes: 24, reversible: false } }
    steps that really executed in THIS process: 1
    inspect + assess did NOT re-run — they were served from the log.
 ```
@@ -299,7 +342,114 @@ ctx.suspend(...)`."*
 
 ---
 
-## Act 5 — Same brain, now a UI · 11:30–14:00
+## Act 4b — 🌿 Fork the gate it was parked at · 11:30–13:30
+
+**SAY:** *"That migration was applied one way — the DBA said direct-ddl. But at the gate there were
+three ways to do it. A branch here is just a shared log prefix. So: go back to event #10 — the gate —
+fork it three ways, dry-run each on real state, and promote one. Prediction first: three branches,
+three lightning bolts, all simulated applies. If inspect or assess run again, the claim is false."*
+
+**DO** (terminal A — same `.data` the crash act just wrote):
+```bash
+pnpm fork
+```
+**SEE:**
+```
+▶  forking the execution from pnpm crash / pnpm resume: 01M2…
+   gate: event #10   ·   parent head: #17 (completed)
+
+🔮 PREDICTION: 3 branches → 3 lightning bolts, all SIMULATED applies.
+   ⚡ EXECUTED  apply    (SIMULATED · direct-ddl)
+   ⚡ EXECUTED  apply    (SIMULATED · online-ddl)
+   ⚡ EXECUTED  apply    (SIMULATED · chunked)
+
+   steps that really executed for 3 branches: 3   model calls: 0
+
+   strategy       lock     duration   reversible   score    branch
+   direct-ddl      48s       24m     no         0.410    spec/direct-ddl → 01M2QBV70BJ4CWQ562XXTPFWMT
+   online-ddl     4.4s      154m     yes        0.756    spec/online-ddl → 01M2QBV70BR85MFJK84E5J6EAZ
+   chunked          0s      444m     yes        0.700    spec/chunked → 01M2QBV70BJ21GFJ16VCKY21MP
+
+   parent 01M2QBV66WTKKDBAP5WS01XQ8C: head #17 (completed) — UNTOUCHED
+
+🏆 promote online-ddl: fork a commit branch from the same gate, apply it FOR REAL, move main.
+   ⚡ EXECUTED  apply    (writes to prod · online-ddl)
+
+   refs:
+     commit             → 01M2QBV70KJ3TFCJTTE73KCW2P  @24
+     main               → 01M2QBV70KJ3TFCJTTE73KCW2P  @24   ← the pointer move IS the promotion
+     spec/chunked       → 01M2QBV70BJ21GFJ16VCKY21MP  @24
+     spec/direct-ddl    → 01M2QBV70BJ4CWQ562XXTPFWMT  @24
+     spec/online-ddl    → 01M2QBV70BR85MFJK84E5J6EAZ  @24
+
+   lineage: 4 branches forked from 01M2QBV66WTKKDBAP5WS01XQ8C.
+   The losers stay immutable and independently resumable. There is no merge —
+   two divergent histories have no sound join, so loom refuses to fake one.
+```
+
+**SAY (point at the counts):** *"Three bolts, zero model calls. The branches never re-inspected, never
+re-asked Gemini — they inherited the prefix. The parent's log didn't move. And there is no merge: two
+divergent histories have no sound join, so it refuses to fake one. You pick a winner by moving a
+pointer."*
+
+> 🎯 *"Isn't this just running the flow three times?"* — No: three runs would be nine bolts and three
+> model calls. Point at `model calls: 0`. The branches share everything above the gate.
+
+---
+
+## Act 4c — 🎲 Decisions that carry their propensity · 13:30–15:00
+
+**Shape: prediction → one candidate, three numbers → the same batch blind → nothing.** Do not read
+the reports; point at three numbers. Say "how sure it was" throughout; say "propensity" once, at the end.
+
+**SAY:** *"Everyone can replay what the model said. Here's the narrow claim I'd defend. When the DBA
+approves without saying how, a policy picks the strategy — and writes down how sure it was. That one
+number lets me ask, later, off logs I already have: what would a different policy have scored? Without
+running it. Prediction: a size-aware policy, which never ran, scores higher than what did. Then I'll
+log the same batch without that number and show you what's left."*
+
+**DO:**
+```bash
+pnpm propensity
+```
+**SEE:**
+```
+▶  48 migrations. The DBA approves but never says HOW — a policy picks the strategy,
+   and writes down how sure it was.
+   48 executions · 48 decisions · 48 carry how-sure-it-was
+
+🔮 PREDICTION: a size-aware policy — one that NEVER RAN — scores higher than what did.
+     steps evaluated     48
+     estimated value     0.8328   (what actually ran: 0.6712)
+     lift                +0.1616
+
+▶  the same 48 migrations, same choices, same rewards — logged WITHOUT how sure it was
+   48 executions · 48 decisions · 0 carry how-sure-it-was
+     steps evaluated     0
+     estimated value     — cannot be estimated (no propensity in the log)
+     lift                —
+```
+
+**SAY (point at the two `steps evaluated` lines):** *"Forty-eight, then zero. Same executions, same
+rewards, same dashboard — and nothing can be learned from the second log. That number is the
+propensity. You either wrote it down at the time, or you didn't. It's checkable:"*
+
+**DO:**
+```bash
+pnpm exec loom learn report --db .data/learn/events.db
+```
+**SEE:** `with propensity 48 (100%)`, from loom's own CLI.
+
+> 🎯 *"Why does that matter?"* — *"Because otherwise you can only learn from what you did, never from
+> what you didn't."*
+> 🎯 *"An estimator that only says yes is useless."* — `pnpm propensity --verbose` adds a backwards
+> policy (chunk the small tables, lock the big ones); its lift is negative. Run it if asked, not before.
+> 🎯 *"How big is the sample really?"* — `--verbose` shows `effective samples`; it's small and the
+> report says so. The estimator refuses to look more confident than the log allows.
+
+---
+
+## Act 5 — Same brain, now a UI · 15:00–18:30
 
 **DO** (terminal B, in `loom-demo`):
 ```bash
@@ -320,6 +470,20 @@ Gemini's risk verdict render live.
 **SAY:** *"Same suspend. In the terminal a human approved from a script; here it's a button."*
 **DO:** click **Approve**.
 **SEE:** phase → applying → **applied**, green banner.
+
+**DO** (the fork, in the tab): run `orders / add-index` → at the gate click **Explore strategies**.
+**SEE:** three cards fill in live — each is a real branch with its own execution id — the parent
+stepper above stays at `awaiting-approval`; `spec/online-ddl` is outlined as best. Click **Promote
+(best score)** → a fourth card applies for real; the refs strip shows `main → <commit id>`.
+**SAY:** *"Same `fork.ts` the terminal just ran. The cards are three `useProjection`s — a branch is a
+whole execution, so the component I already had renders it."*
+
+**DO** (the propensity, in the tab): **Learning** tab → **Serve 48 migrations**.
+**SEE:** `48 carry how-sure-it-was`, then three big numbers: 48 evaluated, an estimate above what ran, a positive lift.
+**DO:** tick **log blind** → serve again. **SEE:** `0 carry how-sure-it-was` · `steps evaluated 0` · `cannot be estimated`.
+(The full reports and the control policy are one click away under "for Q&A".)
+**SAY:** *"Same helper as `pnpm propensity`, same numbers, in a browser tab. That's claim 1 again —
+a dependency, not a control plane — applied to claims 2 and 3."*
 
 **SAY (close):** *"One flow of plain TypeScript. Headless in CI, a React app for an operator,
 a durable log you can replay and time-travel — and swapping the model was one file. That's
@@ -343,6 +507,12 @@ loom: you write the agent, the kernel gives you durability, observability, and a
   90 seconds in the talk, and the deck's closing slide asserts it happened.
 - **`pnpm resume` dies with `ENOENT … .data/last-execution.txt`:** you ran `pnpm pitch:reset`
   after `pnpm crash` instead of before. Re-run `pnpm crash`, then `pnpm resume`.
+- **`pnpm fork` says *never reached the approval gate*:** the last execution was low-risk;
+  `pnpm pitch:reset && pnpm fork` runs a fresh one.
+- **Explore strategies errors with *fork needs a branch registry*:** `../loom` is not on
+  `demo/fork-and-propensity`.
+- **`fork needs a branch registry` from a headless script:** the script must call
+  `sqliteStorage({ dir, branching: true })`.
 
 ## Command cheat-sheet  (run from `loom-demo/`)
 
@@ -351,8 +521,13 @@ pnpm pitch:reset                               # wipe .data — always before `p
 pnpm crash                                     # run → suspend → SIGKILL (exit 137)
 pnpm resume                                    # COLD process finishes it from the log
 pnpm start                                     # headless run (suspend→resume→applied)
+pnpm fork                                      # fork the gate 3 ways, promote one
+pnpm propensity                                # score a policy that never ran, off the log
+pnpm propensity --verbose                      # + backwards control policy (Q&A only)
 pnpm exec loom logs   --db .data/events.db <id>
 pnpm exec loom debug  --db .data/events.db <id> --at 6
+pnpm exec loom learn report --db .data/learn/events.db
+pnpm exec loom logs   --db .data/events.db <branch id>
 pnpm inspect                                   # web timeline on :35789
 pnpm dev                                       # UI on :5173 (strict)
 ```
