@@ -24,6 +24,7 @@ export function BranchBoard({ app, parentId }: { app: LoomApp; parentId: string 
   const [cards, setCards] = useState<Card[]>([]);
   const [outcomes, setOutcomes] = useState<BranchOutcome[] | null>(null);
   const [commit, setCommit] = useState<Card | null>(null);
+  const [promoting, setPromoting] = useState(false);
   const [refList, setRefList] = useState<BranchRef[]>([]);
   const [lineage, setLineage] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -46,7 +47,8 @@ export function BranchBoard({ app, parentId }: { app: LoomApp; parentId: string 
   const winner = outcomes ? pickWinner(outcomes).strategy : null;
 
   const promote = async (strategy: Strategy) => {
-    if (gate === null) return;
+    if (gate === null || promoting) return;
+    setPromoting(true);
     try {
       const c = await promoteAndApply(app, parentId, gate, strategy);
       setCommit({ strategy, executionId: c.executionId, label: "commit (real apply)" });
@@ -54,6 +56,8 @@ export function BranchBoard({ app, parentId }: { app: LoomApp; parentId: string 
       setLineage(await branchCount(app, parentId));
     } catch (e: unknown) {
       setError(String(e));
+    } finally {
+      setPromoting(false);
     }
   };
 
@@ -70,7 +74,8 @@ export function BranchBoard({ app, parentId }: { app: LoomApp; parentId: string 
             app={app}
             card={c}
             winner={winner === c.strategy}
-            onPromote={outcomes && !commit ? () => promote(c.strategy) : undefined}
+            onPromote={outcomes && !commit && !promoting ? () => promote(c.strategy) : undefined}
+            disabled={promoting}
           />
         ))}
         {commit && <BranchCard app={app} card={commit} winner={false} />}
@@ -98,6 +103,7 @@ function BranchCard({
   card,
   winner,
   onPromote,
+  disabled,
 }: {
   app: LoomApp;
   card: Card;
@@ -105,6 +111,7 @@ function BranchCard({
   // `| undefined` explicitly: exactOptionalPropertyTypes is on, and the board passes
   // `undefined` for "not promotable yet" rather than omitting the prop.
   onPromote?: (() => void) | undefined;
+  disabled?: boolean | undefined;
 }) {
   const ui = useProjection<UiState>(app.projectionRuntime, "ui", card.executionId);
   const apply = ui.apply;
@@ -127,7 +134,7 @@ function BranchCard({
         <div style={styles.cardMetrics}>…</div>
       )}
       {onPromote && apply && (
-        <button type="button" style={styles.promote} onClick={onPromote}>
+        <button type="button" style={styles.promote} onClick={onPromote} disabled={disabled}>
           {winner ? "Promote (best score)" : "Promote"}
         </button>
       )}
