@@ -16,7 +16,7 @@
 - The UI's Approve button sends **no** strategy; the policy chooses there.
 - Cost model, verbatim from the spec (m = rows / 1e6): direct-ddl lock `m`, duration `max(1, m/2)`, not reversible · online-ddl lock `2 + m/20`, duration `10 + 3m`, reversible · chunked lock `0`, duration `60 + 8m`, reversible. `reward = 1 − 0.7·min(1, lock/60) − 0.3·min(1, duration/240)`, rounded to 4 places.
 - Logging policy `naive-eps` v1: greedy `direct-ddl`, ε = 0.3, propensity `0.8` for the greedy arm and `0.1` for each other arm. Candidates: `size-aware` v2 (direct < 5M rows, online < 100M, chunked otherwise), `backwards` v0 (chunked < 5M, direct otherwise).
-- Batch size is 48 (12 per change type) on both surfaces. Batch executions use an id prefix and are read back by prefix.
+- Batch size is 48 (12 per change type) on both surfaces. On stage, the propensity act shows ONE candidate and three numbers (`headline`); the control policy and full reports live behind `pnpm propensity --verbose` and a collapsed section in the tab. Stage wording is "how sure it was"; "propensity" is said once, at the end. Batch executions use an id prefix and are read back by prefix.
 - Branch names: `main`, `spec/<strategy>`, `commit`. The winner is the highest `reward`. Promotion is `branchRegistry.promote("commit", "main")`. There is no merge.
 - `.data/` is the crash demo's log. `pnpm propensity` uses `.data/learn/` and `.data/learn-blind/` and wipes them at start.
 - Commits in this repo end with `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`. Loom-repo changes go on branch `demo/fork-and-propensity` (never `main`).
@@ -1419,6 +1419,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
   - `readLog(app, prefix?: string): Promise<EventEnvelope[]>`
   - `interface Coverage { executions; decisions; withContext; withPropensity; scoredDirectly; arms: { strategy: string; meanReward: number; n: number }[] }`, `coverage(events): Coverage`, `formatCoverage(c): string`
   - `evaluate(events, policy: Policy<Strategy>): EvalReport`, re-export `formatEvalReport`.
+  - `headline(r: EvalReport): string` — the three lines the stage shows: steps evaluated, estimated value, lift.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1427,7 +1428,7 @@ Create `test/learn.test.ts`:
 ```ts
 import { beforeEach, describe, expect, it } from "vitest";
 import { buildApp } from "../src/config";
-import { coverage, evaluate, readLog, serveBatch } from "../src/learn";
+import { coverage, evaluate, headline, readLog, serveBatch } from "../src/learn";
 import { memoryStorage } from "../src/memory-storage";
 import { backwards, sizeAware } from "../src/policy";
 import { quietTrace } from "../src/trace";
@@ -1479,6 +1480,22 @@ describe("decisions that carry their propensity", () => {
     expect(good.lift ?? 0).toBeGreaterThan(0);
     expect(bad.lift ?? 0).toBeLessThan(0);
     await app.close();
+  });
+
+  it("headline is three lines, and says so when there is nothing to estimate", () => {
+    const three = headline({
+      policy: { id: "x", version: "1" }, evaluated: 48, skipped: { noContext: 0, noActions: 0, noReward: 0 },
+      agreement: 0.5, loggedValue: 0.66, estimatedValue: 0.85, estimator: "snips", lift: 0.19,
+      effectiveSampleSize: 9, warnings: [],
+    });
+    expect(three.split("\n")).toHaveLength(3);
+    expect(three).toContain("+0.1900");
+    const none = headline({
+      policy: { id: "x", version: "1" }, evaluated: 0, skipped: { noContext: 48, noActions: 0, noReward: 0 },
+      agreement: 0, loggedValue: 0, estimator: "agreement-only", warnings: [],
+    });
+    expect(none).toContain("steps evaluated     0");
+    expect(none).toContain("cannot be estimated");
   });
 
   it("reads only its own prefix", async () => {
@@ -1622,12 +1639,28 @@ export function formatCoverage(c: Coverage): string {
 export function evaluate(events: readonly EventEnvelope[], policy: Policy<Strategy>): EvalReport {
   return evaluatePolicy(trajectories<Strategy>(events), policy);
 }
+
+/**
+ * The three lines a room can read from a stage. `formatEvalReport` has the full
+ * eight-plus-warnings version — keep that for Q&A (`pnpm propensity --verbose`).
+ */
+export function headline(r: EvalReport): string {
+  const steps = `  steps evaluated     ${r.evaluated}`;
+  if (r.estimatedValue === undefined || r.lift === undefined) {
+    return [steps, "  estimated value     — cannot be estimated (no propensity in the log)", "  lift                —"].join("\n");
+  }
+  return [
+    steps,
+    `  estimated value     ${r.estimatedValue.toFixed(4)}   (what actually ran: ${r.loggedValue.toFixed(4)})`,
+    `  lift                ${r.lift >= 0 ? "+" : ""}${r.lift.toFixed(4)}`,
+  ].join("\n");
+}
 ```
 
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `pnpm exec vitest run test/learn.test.ts`
-Expected: 4 passed. If the third case fails on the sign of `lift`, print both reports (`formatEvalReport`) — the expected values are roughly logged ≈ 0.66, size-aware ≈ 0.85, backwards ≈ 0.61; a wrong sign means the cost model or `propensityOf` drifted from Task 1/2, not that the test is wrong.
+Expected: 5 passed. If the third case fails on the sign of `lift`, print both reports (`formatEvalReport`) — the expected values are roughly logged ≈ 0.66, size-aware ≈ 0.85, backwards ≈ 0.61; a wrong sign means the cost model or `propensityOf` drifted from Task 1/2, not that the test is wrong.
 
 - [ ] **Step 5: Commit**
 
@@ -1646,6 +1679,10 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 - Create: `src/pitch-propensity.ts`
 - Modify: `package.json` (scripts)
 
+**Stage shape (from the audience review):** prediction → one candidate, three numbers → the same batch
+blind → `evaluated: 0`. The control policy and the full reports exist only behind `--verbose`, for Q&A.
+Say "how sure it was" on stage; name it "propensity" once, in the last line.
+
 - [ ] **Step 1: Add the script**
 
 In `package.json` scripts, after `"fork"`:
@@ -1662,7 +1699,7 @@ Create `src/pitch-propensity.ts`:
 import { rmSync } from "node:fs";
 import { sqliteStorage } from "@loom/plugin-sqlite";
 import { buildApp } from "./config";
-import { coverage, evaluate, formatCoverage, formatEvalReport, readLog, serveBatch } from "./learn";
+import { coverage, evaluate, formatCoverage, formatEvalReport, headline, readLog, serveBatch } from "./learn";
 import { backwards, sizeAware } from "./policy";
 import { quietTrace } from "./trace";
 
@@ -1670,11 +1707,15 @@ import { quietTrace } from "./trace";
  * ACT 4c — "what would a different choice have scored?"
  *
  * Everyone can replay what the model said. The claim here is narrower and checkable:
- * because each strategy decision was logged WITH the probability it was chosen with,
- * a policy that never ran can be scored against this log — and the same executions
- * logged without that number cannot be. You either wrote it down at the time or you didn't.
+ * because each strategy decision was logged WITH how sure the policy was, a policy that
+ * never ran can be scored against this log — and the same executions logged without
+ * that number cannot be. You either wrote it down at the time or you didn't.
+ *
+ * Default output is the stage version: one candidate, three numbers, then the blind
+ * contrast. `--verbose` adds the full reports and the backwards control, for Q&A.
  */
 const N = 48;
+const VERBOSE = process.argv.includes("--verbose");
 const indent = (s: string) => s.split("\n").map((l) => `   ${l}`).join("\n");
 
 async function main(): Promise<void> {
@@ -1684,33 +1725,38 @@ async function main(): Promise<void> {
   rmSync(".data/learn", { recursive: true, force: true });
   rmSync(".data/learn-blind", { recursive: true, force: true });
 
-  console.log(`▶  serving ${N} migrations through the live policy — naive-eps v1: greedy direct-ddl, ε = 0.3`);
-  console.log("   (offline reviewer, no Gemini; the flow, the gate and the log are the real ones)\n");
+  console.log(`▶  ${N} migrations. The DBA approves but never says HOW — a policy picks the strategy,`);
+  console.log("   and writes down how sure it was. (offline reviewer, no Gemini; the flow, gate and log are real)\n");
   const app = buildApp({ storage: sqliteStorage({ dir: ".data/learn" }) });
   await serveBatch(app, N, { prefix: "learn-" });
   const events = await readLog(app, "learn-");
-  console.log(formatCoverage(coverage(events)));
-  console.log("\n   Every decision carries the observation it was made on AND the probability the");
-  console.log("   policy assigned to it. That second number cannot be reconstructed later.\n");
+  const cov = coverage(events);
+  console.log(`   ${cov.executions} executions · ${cov.decisions} decisions · ${cov.withPropensity} carry how-sure-it-was\n`);
+  if (VERBOSE) console.log(`${formatCoverage(cov)}\n`);
 
-  console.log("🔮 PREDICTION: a size-aware policy scores HIGHER than what we ran — without running it.\n");
-  console.log(indent(formatEvalReport(evaluate(events, sizeAware))));
-  console.log("\n   Nothing re-ran. The candidate never chose anything. The estimate comes from the");
-  console.log("   steps where it AGREES with the log, reweighted by 1/propensity (SNIPS).\n");
+  console.log("🔮 PREDICTION: a size-aware policy — one that NEVER RAN — scores higher than what did.\n");
+  const candidate = evaluate(events, sizeAware);
+  console.log(indent(VERBOSE ? formatEvalReport(candidate) : headline(candidate)));
+  console.log("\n   Nothing re-ran. The candidate was only asked what it would have chosen.\n");
 
-  console.log("🔮 PREDICTION: a backwards policy — chunk the small tables, lock the big ones — scores LOWER.\n");
-  console.log(indent(formatEvalReport(evaluate(events, backwards))));
+  if (VERBOSE) {
+    console.log("   (control) a backwards policy — chunk the small tables, lock the big ones — must score LOWER:\n");
+    console.log(indent(formatEvalReport(evaluate(events, backwards))));
+    console.log("");
+  }
 
-  console.log(`\n▶  the contrast: the same ${N} migrations, decided by a bare ctx.decide — no context, no propensity\n`);
+  console.log(`▶  the same ${N} migrations, same choices, same rewards — logged WITHOUT how sure it was\n`);
   const blindApp = buildApp({ storage: sqliteStorage({ dir: ".data/learn-blind" }) });
   await serveBatch(blindApp, N, { blind: true, prefix: "blind-" });
   const blind = await readLog(blindApp, "blind-");
-  console.log(formatCoverage(coverage(blind)));
-  console.log("");
-  console.log(indent(formatEvalReport(evaluate(blind, sizeAware))));
-  console.log("\n   Same executions, same rewards, same dashboard. evaluated: 0.");
-  console.log("   You either wrote the propensity down at the time, or you didn't.\n");
+  const blindCov = coverage(blind);
+  console.log(`   ${blindCov.executions} executions · ${blindCov.decisions} decisions · ${blindCov.withPropensity} carry how-sure-it-was\n`);
+  const blindReport = evaluate(blind, sizeAware);
+  console.log(indent(VERBOSE ? formatEvalReport(blindReport) : headline(blindReport)));
+  console.log("\n   Same executions. Same rewards. Same dashboard. Nothing can be learned from it.");
+  console.log("   That number is the propensity. You either wrote it down at the time, or you didn't.\n");
   console.log("Checkable:  pnpm exec loom learn report --db .data/learn/events.db");
+  if (!VERBOSE) console.log("Full reports + the control policy:  pnpm propensity --verbose");
 
   await app.close();
   await blindApp.close();
@@ -1722,38 +1768,36 @@ main().catch((err) => {
 });
 ```
 
-- [ ] **Step 3: Run it and check it against the CLI**
+- [ ] **Step 3: Run it both ways and check it against the CLI**
 
 Run: `pnpm propensity`
-Expected shape:
+Expected shape (stage version — short):
 ```
-▶  serving 48 migrations through the live policy — naive-eps v1: …
-   Learning report — 48 execution(s), 48 decision(s)
-     with context      48 (100%)
-     with propensity   48 (100%)
-     scored directly   48 (100%)
-   Arms (mean reward, best first)
-     …
-🔮 PREDICTION: a size-aware policy scores HIGHER …
-   Policy size-aware@2 — off-policy evaluation
-     steps evaluated     48
-     agreement with log  …
-     logged value        0.6xxx
-     estimated value     0.8xxx (snips)
-     lift                +0.1xxx
-     effective samples   …
-🔮 PREDICTION: a backwards policy … scores LOWER.
-     lift                -0.0xxx
-▶  the contrast …
-     with context      0 (0%)
-     with propensity   0 (0%)
-     scored directly   0 (0%)
-   Policy size-aware@2 — off-policy evaluation
-     steps evaluated     0
-     estimated value     — (agreement-only)
-```
-Then: `pnpm exec loom learn report --db .data/learn/events.db` — Expected: the same coverage numbers (48 / 48 / 48). And `pnpm exec loom learn report --db .data/learn-blind/events.db` shows the three "Blocking gaps" lines.
+▶  48 migrations. The DBA approves but never says HOW — a policy picks the strategy,
+   and writes down how sure it was. …
+   48 executions · 48 decisions · 48 carry how-sure-it-was
 
+🔮 PREDICTION: a size-aware policy — one that NEVER RAN — scores higher than what did.
+     steps evaluated     48
+     estimated value     0.8xxx   (what actually ran: 0.6xxx)
+     lift                +0.1xxx
+
+   Nothing re-ran. …
+
+▶  the same 48 migrations, same choices, same rewards — logged WITHOUT how sure it was
+   48 executions · 48 decisions · 0 carry how-sure-it-was
+     steps evaluated     0
+     estimated value     — cannot be estimated (no propensity in the log)
+     lift                —
+
+   Same executions. Same rewards. Same dashboard. Nothing can be learned from it.
+   That number is the propensity. You either wrote it down at the time, or you didn't.
+
+Checkable:  pnpm exec loom learn report --db .data/learn/events.db
+Full reports + the control policy:  pnpm propensity --verbose
+```
+Run: `pnpm propensity --verbose` — Expected: full `formatEvalReport` blocks, the coverage block, and the backwards control with a negative lift.
+Then: `pnpm exec loom learn report --db .data/learn/events.db` — Expected: coverage 48 / 48 / 48. And `--db .data/learn-blind/events.db` shows the three "Blocking gaps" lines.
 Run it twice in a row: the second run must not fail on duplicate ids (the dirs are wiped).
 
 - [ ] **Step 4: Commit**
@@ -1976,12 +2020,13 @@ const styles: Record<string, React.CSSProperties> = {
 
 - [ ] **Step 3: The learning panel**
 
-Create `src/browser/LearningPanel.tsx`:
+Create `src/browser/LearningPanel.tsx` — headline numbers big, the full reports and the control
+policy folded into a `<details>` so the stage view stays at three numbers:
 
 ```tsx
 import React, { useState } from "react";
 import type { LoomApp } from "../config";
-import { coverage, evaluate, formatCoverage, formatEvalReport, readLog, serveBatch } from "../learn";
+import { coverage, evaluate, formatCoverage, formatEvalReport, headline, readLog, serveBatch } from "../learn";
 import { backwards, sizeAware } from "../policy";
 import { quietTrace } from "../trace";
 
@@ -1992,6 +2037,8 @@ const N = 48;
 
 interface Result {
   blind: boolean;
+  carry: number;
+  headline: string;
   coverage: string;
   candidate: string;
   control: string;
@@ -2013,10 +2060,14 @@ export function LearningPanel({ app }: { app: LoomApp }) {
     try {
       await serveBatch(app, N, { blind, prefix, onProgress: (d, t) => setProgress([d, t]) });
       const events = await readLog(app, prefix);
+      const cov = coverage(events);
+      const candidate = evaluate(events, sizeAware);
       setResult({
         blind,
-        coverage: formatCoverage(coverage(events)),
-        candidate: formatEvalReport(evaluate(events, sizeAware)),
+        carry: cov.withPropensity,
+        headline: headline(candidate),
+        coverage: formatCoverage(cov),
+        candidate: formatEvalReport(candidate),
         control: formatEvalReport(evaluate(events, backwards)),
       });
     } catch (e: unknown) {
@@ -2030,8 +2081,8 @@ export function LearningPanel({ app }: { app: LoomApp }) {
   return (
     <div style={styles.panel} data-testid="learning-panel">
       <div style={styles.intro}>
-        When the DBA approves without saying how, a policy picks the strategy — and records the probability it
-        picked it with. Serve a batch, then score policies that <b>never ran</b> against that log.
+        When the DBA approves without saying how, a policy picks the strategy — and writes down how sure it was.
+        Serve a batch, then score a policy that <b>never ran</b> against that log.
       </div>
       <div style={styles.controls}>
         <button type="button" style={styles.runBtn} onClick={serve} disabled={progress !== null}>
@@ -2039,20 +2090,30 @@ export function LearningPanel({ app }: { app: LoomApp }) {
         </button>
         <label style={styles.check}>
           <input type="checkbox" checked={blind} onChange={(e) => setBlind(e.target.checked)} disabled={progress !== null} />
-          log blind (bare ctx.decide — no context, no propensity)
+          log blind — same choices, without how sure it was
         </label>
       </div>
       {error && <div style={styles.error}>{error}</div>}
       {result && (
         <div style={styles.reports}>
-          <Report title={result.blind ? "What a blind log can teach" : "What the log can teach"} body={result.coverage} />
-          <Report title="Candidate: size-aware v2 — never ran" body={result.candidate} />
-          <Report title="Control: backwards v0 — never ran" body={result.control} />
-          <div style={styles.moral}>
-            {result.blind
-              ? "Same executions, same rewards, same dashboard. evaluated: 0. You either wrote the propensity down at the time, or you didn't."
-              : "Nothing re-ran. Each candidate was only asked what it would have chosen; the estimate reweights the steps it agrees with by 1/propensity (SNIPS)."}
+          <div style={styles.card}>
+            <div style={styles.cardTitle}>
+              {N} decisions · <b>{result.carry}</b> carry how-sure-it-was
+            </div>
+            <div style={styles.cardTitle}>Size-aware policy — never ran</div>
+            <pre style={styles.headline}>{result.headline}</pre>
+            <div style={styles.moral}>
+              {result.blind
+                ? "Same executions, same rewards, same dashboard. Nothing can be learned from it. That number is the propensity — you either wrote it down at the time, or you didn't."
+                : "Nothing re-ran. The candidate was only asked what it would have chosen; the estimate reweights the steps it agrees with by 1/propensity."}
+            </div>
           </div>
+          <details style={styles.details}>
+            <summary style={styles.summary}>Full reports and the control policy (for Q&A)</summary>
+            <Report title={result.blind ? "What a blind log can teach" : "What the log can teach"} body={result.coverage} />
+            <Report title="Candidate: size-aware v2 — never ran" body={result.candidate} />
+            <Report title="Control: backwards v0 — never ran (must score lower)" body={result.control} />
+          </details>
         </div>
       )}
     </div>
@@ -2075,10 +2136,13 @@ const styles: Record<string, React.CSSProperties> = {
   runBtn: { padding: "10px 20px", borderRadius: 8, border: "none", cursor: "pointer", background: "#3182ce", color: "#fff", fontWeight: 700, fontSize: 14 },
   check: { display: "flex", gap: 8, alignItems: "center", fontSize: 13, color: "#a9b7c9" },
   reports: { display: "flex", flexDirection: "column", gap: 12 },
-  card: { padding: "14px 18px", borderRadius: 10, background: "#0f1620", border: "1px solid #232c3b" },
-  cardTitle: { fontSize: 13, fontWeight: 700, color: "#cbd5e0", marginBottom: 8 },
+  card: { padding: "14px 18px", borderRadius: 10, background: "#0f1620", border: "1px solid #232c3b", display: "flex", flexDirection: "column", gap: 8 },
+  cardTitle: { fontSize: 13, fontWeight: 700, color: "#cbd5e0" },
+  headline: { margin: 0, fontSize: 18, color: "#e2e8f0", whiteSpace: "pre-wrap", fontFamily: "ui-monospace, monospace", lineHeight: 1.6 },
   pre: { margin: 0, fontSize: 12, color: "#e2e8f0", whiteSpace: "pre-wrap", fontFamily: "ui-monospace, monospace" },
   moral: { fontSize: 13, color: "#9ae6b4", lineHeight: 1.5 },
+  details: { display: "flex", flexDirection: "column", gap: 10 },
+  summary: { cursor: "pointer", fontSize: 12, color: "#6b7d95" },
   error: { color: "#feb2b2", fontSize: 12 },
 };
 ```
@@ -2185,8 +2249,8 @@ Run `pnpm dev` and open http://127.0.0.1:5173 (use the `run` skill or claude-in-
 2. **Explore strategies** → a board appears with three cards; each shows its own executionId, phase moving to `simulated`, lock/duration/score; the `spec/online-ddl` card is outlined green with "Promote (best score)". The parent stepper above still says `awaiting-approval`.
 3. **Promote (best score)** → a fourth card "commit (real apply)" reaches `applied`; the refs strip shows `main → <commit id>`; note says 4 branches, no merge.
 4. **New run**, run again, **Approve** → banner: "Migration applied via <strategy> … chosen by naive-eps v1 · propensity 0.80" (or 0.10).
-5. Learning tab, **Serve 48 migrations** → progress counts to 48; three reports: coverage 48/48/48, size-aware with `(snips)` and a positive lift, backwards with a negative lift.
-6. Tick **log blind**, serve again → coverage 0/0/0, candidate `steps evaluated 0`, `(agreement-only)`, the blind moral line.
+5. Learning tab, **Serve 48 migrations** → progress counts to 48; the card reads `48 carry how-sure-it-was`, the headline shows `steps evaluated 48`, an estimated value above the logged one, and a positive lift. Opening the details shows the coverage block, the full candidate report with `(snips)`, and the backwards control with a negative lift.
+6. Tick **log blind**, serve again → `0 carry how-sure-it-was`, headline `steps evaluated 0` / `cannot be estimated`, the blind moral line.
 
 Fix anything that does not match before committing. Check the browser console has no red errors.
 
@@ -2208,10 +2272,10 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 
 - [ ] **Step 1: DEMO_SCRIPT — sync the lines Task 3 changed**
 
-- Title line: `(~14 min)` → `(~19 min)`.
+- Title line: `(~14 min)` → `(~18 min)`.
 - Pre-flight step 0: append `The loom checkout must contain branch demo/fork-and-propensity (or its merge) — it exports the in-memory branch registry the UI needs.`
-- Act 2 code listing: replace the runner block with the runner from Task 3 Step 4 (from `const ApprovalDecision` through the closing `};` of `runner`). Add a fourth talk-track bullet:
-  > - On `chooseStrategy(...)` / `recordOutcome(...)`: *"If the DBA doesn't say how, a policy picks — through `ctx.decide`, so it's recorded once and replayed. The extra thing it writes down is the probability it picked with. Hold that thought; Act 4c is about why."*
+- Act 2 code listing: replace the runner block with the runner from Task 3 Step 4 (from `const ApprovalDecision` through the closing `};` of `runner`). Add a fourth talk-track bullet — this is where the room learns the word "strategy", so both later acts reuse a known word:
+  > - On `decision?.strategy` / `chooseStrategy(...)`: *"There are three ways to apply a migration: lock the table and just do it, copy-and-swap, or batch it slowly. The DBA can say which. If they don't, a policy picks — through `ctx.decide`, so it's recorded once and replayed — and it writes down one extra thing: how sure it was. Hold that thought."*
 - Act 3 SEE block: `✅ completed — { applied: true, simulated: false, risk: 'high', approvedBy: 'ada@example.com', strategy: 'direct-ddl', projected: { lockSeconds: 48, durationMinutes: 24, reversible: false } }`; the `loom logs` line list gains nothing (no decision — the driver named the strategy).
 - Act 4 SEE blocks: `⚡ EXECUTED  apply    (writes to prod · direct-ddl)` and the same `🎉 completed — {…}` object as above.
 - `pnpm test` line: `# 15 green` → count from `pnpm test` (strategies 4 + policy 5 + migration-guard 6 + fork 2 + learn 4 = 21).
@@ -2269,13 +2333,16 @@ pointer."*
 
 ---
 
-## Act 4c — 🎲 Decisions that carry their propensity · 13:30–15:30
+## Act 4c — 🎲 Decisions that carry their propensity · 13:30–15:00
 
-**SAY:** *"Everyone can replay what the model said. Here's the narrow claim I'd defend: when the DBA
-approves without saying how, a policy picks the strategy — and writes down the probability it picked
-it with. That number lets me ask, later, off logs I already have, what a different policy would have
-scored. Without running it. Prediction: a size-aware policy scores higher than what ran; a backwards
-one scores lower; and the same batch logged without the propensity can't be scored at all."*
+**Shape: prediction → one candidate, three numbers → the same batch blind → nothing.** Do not read
+the reports; point at three numbers. Say "how sure it was" throughout; say "propensity" once, at the end.
+
+**SAY:** *"Everyone can replay what the model said. Here's the narrow claim I'd defend. When the DBA
+approves without saying how, a policy picks the strategy — and writes down how sure it was. That one
+number lets me ask, later, off logs I already have: what would a different policy have scored? Without
+running it. Prediction: a size-aware policy, which never ran, scores higher than what did. Then I'll
+log the same batch without that number and show you what's left."*
 
 **DO:**
 ```bash
@@ -2283,50 +2350,45 @@ pnpm propensity
 ```
 **SEE:**
 ```
-▶  serving 48 migrations through the live policy — naive-eps v1: greedy direct-ddl, ε = 0.3
-   Learning report — 48 execution(s), 48 decision(s)
-     with context      48 (100%)
-     with propensity   48 (100%)
-     scored directly   48 (100%)
+▶  48 migrations. The DBA approves but never says HOW — a policy picks the strategy,
+   and writes down how sure it was.
+   48 executions · 48 decisions · 48 carry how-sure-it-was
 
-🔮 PREDICTION: a size-aware policy scores HIGHER than what we ran — without running it.
-   Policy size-aware@2 — off-policy evaluation
+🔮 PREDICTION: a size-aware policy — one that NEVER RAN — scores higher than what did.
      steps evaluated     48
-     logged value        0.6…
-     estimated value     0.8… (snips)
+     estimated value     0.8…   (what actually ran: 0.6…)
      lift                +0.1…
-     effective samples   …
 
-🔮 PREDICTION: a backwards policy … scores LOWER.
-     lift                -0.0…
-
-▶  the contrast: the same 48 migrations, decided by a bare ctx.decide — no context, no propensity
-     with context      0 (0%)
-     with propensity   0 (0%)
-   Policy size-aware@2 — off-policy evaluation
+▶  the same 48 migrations, same choices, same rewards — logged WITHOUT how sure it was
+   48 executions · 48 decisions · 0 carry how-sure-it-was
      steps evaluated     0
-     estimated value     — (agreement-only)
+     estimated value     — cannot be estimated (no propensity in the log)
+     lift                —
 ```
 
-**SAY:** *"Same executions, same rewards, same dashboard — and `evaluated: 0`. You either wrote the
-propensity down at the time, or you didn't. That's the whole argument, and it's checkable:"*
+**SAY (point at the two `steps evaluated` lines):** *"Forty-eight, then zero. Same executions, same
+rewards, same dashboard — and nothing can be learned from the second log. That number is the
+propensity. You either wrote it down at the time, or you didn't. It's checkable:"*
 
 **DO:**
 ```bash
 pnpm exec loom learn report --db .data/learn/events.db
 ```
-**SEE:** the same coverage block, from loom's own CLI.
+**SEE:** `with propensity 48 (100%)`, from loom's own CLI.
 
 > 🎯 *"Why does that matter?"* — *"Because otherwise you can only learn from what you did, never from
-> what you didn't."* — 🎯 *"How big is the sample really?"* — point at `effective samples`; it's small
-> and the report says so. The estimator refuses to look more confident than the log allows.
+> what you didn't."*
+> 🎯 *"An estimator that only says yes is useless."* — `pnpm propensity --verbose` adds a backwards
+> policy (chunk the small tables, lock the big ones); its lift is negative. Run it if asked, not before.
+> 🎯 *"How big is the sample really?"* — `--verbose` shows `effective samples`; it's small and the
+> report says so. The estimator refuses to look more confident than the log allows.
 
 ---
 ````
 
 - [ ] **Step 3: DEMO_SCRIPT — Act 5 additions and cheat-sheet**
 
-Retitle `## Act 5 — Same brain, now a UI · 11:30–14:00` → `· 15:30–19:00` and append to its DO list:
+Retitle `## Act 5 — Same brain, now a UI · 11:30–14:00` → `· 15:00–18:30` and append to its DO list:
 
 ````markdown
 **DO** (the fork, in the tab): run `orders / add-index` → at the gate click **Explore strategies**.
@@ -2337,13 +2399,14 @@ stepper above stays at `awaiting-approval`; `spec/online-ddl` is outlined as bes
 whole execution, so the component I already had renders it."*
 
 **DO** (the propensity, in the tab): **Learning** tab → **Serve 48 migrations**.
-**SEE:** coverage 48/48/48, size-aware `(snips)` with a positive lift, backwards negative.
-**DO:** tick **log blind** → serve again. **SEE:** `steps evaluated 0 · (agreement-only)`.
+**SEE:** `48 carry how-sure-it-was`, then three big numbers: 48 evaluated, an estimate above what ran, a positive lift.
+**DO:** tick **log blind** → serve again. **SEE:** `0 carry how-sure-it-was` · `steps evaluated 0` · `cannot be estimated`.
+(The full reports and the control policy are one click away under "for Q&A".)
 **SAY:** *"Same helper as `pnpm propensity`, same numbers, in a browser tab. That's claim 1 again —
 a dependency, not a control plane — applied to claims 2 and 3."*
 ````
 
-Cheat-sheet: add `pnpm fork`, `pnpm propensity`, `pnpm exec loom learn report --db .data/learn/events.db`, and `pnpm exec loom logs --db .data/events.db <branch id>`.
+Cheat-sheet: add `pnpm fork`, `pnpm propensity`, `pnpm propensity --verbose` (Q&A only), `pnpm exec loom learn report --db .data/learn/events.db`, and `pnpm exec loom logs --db .data/events.db <branch id>`.
 
 "If something breaks": add
 - `pnpm fork` says *never reached the approval gate* → the last execution was low-risk; `pnpm pitch:reset && pnpm fork` runs a fresh one.
@@ -2395,8 +2458,8 @@ In the TIMING PLAN comment near the top, change:
 ```
 to
 ```
- 15:00  Act V    THE SPIKE          13 min  → loom-demo/DEMO_SCRIPT.md (Acts 4, 4b, 4c)
- 28:00  Act VI   Unknowns + the ask  2 min  → "What I still don't know" — the ask only, if tight
+ 15:00  Act V    THE SPIKE          12 min  → loom-demo/DEMO_SCRIPT.md (Acts 4, 4b, 4c)
+ 27:00  Act VI   Unknowns + the ask  3 min  → "What I still don't know"
  30:00  Q&A
 ```
 and add to the CUT ORDER list, first: `0. Act 4c "What would a different choice have scored" (keep 4b — it is the visual one)`. Add to the never-cut note: `The three demos map to the three "still unclaimed" claims; if you cut one, say which claim goes undemonstrated.`
@@ -2436,22 +2499,24 @@ WHY NO MERGE — say it before they ask. Refusing to ship the unsound thing is t
 
 ## Claim 3, run: what would a different choice have scored?
 
-| | logged with propensity | logged blind (bare `ctx.decide`) |
+| the same 48 migrations, twice | logged with *how sure it was* | logged without |
 |---|---|---|
-| decisions | 48 | 48 |
-| with propensity | **48** | **0** |
-| size-aware policy, never run | est. 0.8x · lift **+0.1x** (SNIPS) | **evaluated: 0** |
-| backwards policy, never run | lift **−0.0x** | evaluated: 0 |
+| a size-aware policy that **never ran** — steps evaluated | **48** | **0** |
+| its estimated score vs. what actually ran | 0.8x vs 0.6x · lift **+0.1x** | cannot be estimated |
 
-Same executions, same rewards, same dashboard. **You either wrote the propensity down at the
-time, or you didn't.** Checkable: `loom learn report --db .data/learn/events.db`.
+Same executions, same rewards, same dashboard. **That number is the propensity. You either
+wrote it down at the time, or you didn't.** Checkable: `loom learn report --db .data/learn/events.db`.
 
 **Did *not* prove:** that the estimate is tight — effective sample size is small and the report
 says so. It proves the *question can be asked* off real logs, not that 48 runs answer it.
 
 <!--
 loom-demo Act 4c: `pnpm propensity`, then the loom CLI for the same numbers.
-This is the load-bearing claim of the deck now; slow down here.
+This is the load-bearing claim of the deck now; slow down here. Say "how sure it was"
+until the last sentence, then name it "propensity" once. Point at the two "steps
+evaluated" numbers — 48, then 0 — and nothing else.
+"an estimator that only says yes is useless" → `pnpm propensity --verbose` adds a backwards
+policy with a negative lift. Have it ready; don't run it unprompted.
 "why does it matter?" → "otherwise you learn only from what you did, never from what you didn't."
 "how big is the sample?" → point at effective samples. The estimator refuses to look more
 confident than the log allows — that's a feature, say so.
@@ -2474,4 +2539,5 @@ Then tell the user the loom branch `demo/fork-and-propensity` has two commits an
 
 - **Spec coverage:** §1 flow → Task 3; §2 policy → Task 2; §3 helpers → Tasks 4, 5, 7 (trace quiet in Task 3; memory storage + loom shim in Task 4); §4 scripts → Tasks 6, 8; §5 UI → Task 9 (phases, board, panel, banner, storage); §6 tests → Tasks 1, 2, 3, 5, 7; §7 docs/deck → Tasks 10, 11. Out-of-scope items untouched.
 - **Types:** `StrategyChoice.policy.propensity` is required (number) — the UI banner and the flow test rely on it; `MigrationResult.projected` optional (absent on rejection) and checked in `exploreStrategies`. `headOf` returns `{ sequence, status }` and is compared with `toEqual` in the fork test. `serveBatch` returns ids; `readLog(app, prefix)` filters by `startsWith`.
+- **Audience review folded in:** strategy is introduced in Act 2's talk track; Act 4c is prediction → three numbers → blind contrast; the backwards control is Q&A-only (`--verbose` / details); the claim 3 slide has two rows.
 - **Known judgment calls:** `void migrationGuardFlow` in fork.ts is optional; the cost-model numbers in SEE blocks are from the spec's table and must be re-checked against the real run in Task 6 Step 3 / Task 8 Step 3.
