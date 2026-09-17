@@ -35,7 +35,8 @@ The sibling `../loom` checkout must be on branch `demo/fork-and-propensity` (or 
 export GEMINI_API_KEY=...          # optional — omit to use the offline provider
 pnpm start
 #   ⏸  suspended at #10 — { phase: "awaiting-approval", assessment: { risk: "high", … } }
-#   ✅ completed — { applied: true, risk: "high", approvedBy: "ada@example.com" }
+#   ✅ completed — { applied: true, simulated: false, risk: "high", approvedBy: "ada@example.com",
+#                    strategy: "direct-ddl", projected: { lockSeconds: 48, durationMinutes: 24, reversible: false } }
 
 # ── The money demo: survive a real process death ────────────────────
 pnpm pitch:reset                   # wipe .data first

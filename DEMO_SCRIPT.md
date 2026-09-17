@@ -356,7 +356,7 @@ pnpm fork
 **SEE:**
 ```
 ▶  forking the execution from pnpm crash / pnpm resume: 01M2…
-   gate: event #10   ·   parent head: #17 (completed)
+   gate: event #10   ·   parent head: #24 (completed)
 
 🔮 PREDICTION: 3 branches → 3 lightning bolts, all SIMULATED applies.
    ⚡ EXECUTED  apply    (SIMULATED · direct-ddl)
@@ -370,7 +370,7 @@ pnpm fork
    online-ddl     4.4s      154m     yes        0.756    spec/online-ddl → 01M2QBV70BR85MFJK84E5J6EAZ
    chunked          0s      444m     yes        0.700    spec/chunked → 01M2QBV70BJ21GFJ16VCKY21MP
 
-   parent 01M2QBV66WTKKDBAP5WS01XQ8C: head #17 (completed) — UNTOUCHED
+   parent 01M2QBV66WTKKDBAP5WS01XQ8C: head #24 (completed) — UNTOUCHED
 
 🏆 promote online-ddl: fork a commit branch from the same gate, apply it FOR REAL, move main.
    ⚡ EXECUTED  apply    (writes to prod · online-ddl)
