@@ -83,12 +83,13 @@ export function BranchBoard({
             key={c.executionId}
             app={app}
             card={c}
-            winner={winner === c.strategy}
+            winner={winner === c.strategy && !commit}
             onPromote={outcomes && !commit && !promoting ? () => promote(c.strategy) : undefined}
             disabled={promoting}
           />
         ))}
-        {commit && <BranchCard app={app} card={commit} winner={false} />}
+        {/* Once promoted, the outline moves to what main now names — the commit — not the dry run. */}
+        {commit && <BranchCard app={app} card={commit} winner />}
       </div>
       {refList.length > 0 && (
         <div style={styles.refs}>
