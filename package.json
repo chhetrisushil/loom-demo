@@ -19,12 +19,14 @@
     "clean": "rm -rf dist .data tsconfig.tsbuildinfo"
   },
   "dependencies": {
+    "@loom/analytics": "link:../loom/packages/analytics",
     "@loom/app": "link:../loom/packages/app",
     "@loom/core": "link:../loom/packages/core",
     "@loom/dispatcher": "link:../loom/packages/dispatcher",
     "@loom/effect-runtime": "link:../loom/packages/effect-runtime",
     "@loom/event-runtime": "link:../loom/packages/event-runtime",
     "@loom/llm": "link:../loom/packages/llm",
+    "@loom/learning": "link:../loom/packages/learning",
     "@loom/middleware": "link:../loom/packages/middleware",
     "@loom/plugin-renderer-react": "link:../loom/plugins/renderer-react",
     "@loom/plugin-sqlite": "link:../loom/plugins/sqlite",

@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@loom/analytics':
+        specifier: link:../loom/packages/analytics
+        version: link:../loom/packages/analytics
       '@loom/app':
         specifier: link:../loom/packages/app
         version: link:../loom/packages/app
@@ -23,6 +26,9 @@ importers:
       '@loom/event-runtime':
         specifier: link:../loom/packages/event-runtime
         version: link:../loom/packages/event-runtime
+      '@loom/learning':
+        specifier: link:../loom/packages/learning
+        version: link:../loom/packages/learning
       '@loom/llm':
         specifier: link:../loom/packages/llm
         version: link:../loom/packages/llm
