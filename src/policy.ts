@@ -17,7 +17,9 @@ export type StrategyContext = { change: string; rows: number; risk: string };
 
 export interface StrategyChoice {
   strategy: Strategy;
-  /** Present when a policy chose (and the log is learnable). Absent for a human's pick or a blind decision. */
+  /** True whenever a policy (not the human) picked — learnable or blind alike. */
+  chosenByPolicy: boolean;
+  /** Present when a policy chose AND the log is learnable. Absent for a human's pick or a blind decision. */
   policy?: { id: string; version: string; propensity: number };
 }
 
@@ -96,18 +98,30 @@ export function isBlind(): boolean {
  *
  * Learnable (default): `decideWithPolicy` records context + policy + propensity +
  * alternatives. Blind: the SAME choice through a bare `ctx.decide` — it completes,
- * it replays, a dashboard can count it, and nothing can ever be learned from it.
+ * it replays, a dashboard can count it, and the outcome still names it as the
+ * decision that produced it. The ONLY thing a blind log lacks is the observation
+ * the policy saw and the propensity it chose with — one variable, not the whole
+ * decision.
+ *
+ * NOTE ON REPLAY: the learnable path's `select` runs on every replay (it advances
+ * the PRNG each time, then the recorded choice — not the fresh draw — is what's
+ * returned); the blind path's `ctx.decide` thunk is skipped on replay (served from
+ * the log instead). A learnable batch and a blind batch only draw the same sequence
+ * of numbers because `resetPolicySeed` runs before each batch AND this flow calls
+ * `chooseStrategy` at most once per execution — call it twice in one execution and
+ * the two batches would drift apart.
  */
 export async function chooseStrategy(ctx: WorkflowContext, context: StrategyContext): Promise<StrategyChoice> {
   if (blind) {
     const strategy = (await ctx.decide<Strategy>("strategy", () => loggingPolicy.select(context, STRATEGIES).action));
-    return { strategy };
+    return { strategy, chosenByPolicy: true };
   }
   const strategy = await decideWithPolicy<Strategy>(ctx, "strategy", loggingPolicy, context, STRATEGIES);
   // The propensity of the RECORDED choice (not of a fresh draw — on replay `select` is
   // consulted and discarded, so its draw may differ from what the log says ran).
   return {
     strategy,
+    chosenByPolicy: true,
     policy: { id: loggingPolicy.id, version: loggingPolicy.version, propensity: loggingPolicy.propensityOf(strategy) },
   };
 }

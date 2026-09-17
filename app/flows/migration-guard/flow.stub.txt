@@ -7,7 +7,7 @@ import { flow$, handler$, step$ } from "@loom/core";
 import type { FlowRunner, RegisteredFlow } from "@loom/workflow-runtime";
 import { z } from "zod";
 import { llm } from "../../../src/llm"; // export const llm — any LlmProvider works (Gemini here)
-import { chooseStrategy } from "../../../src/policy"; // the strategy policy: records its propensity
+import { chooseStrategy, type StrategyChoice } from "../../../src/policy"; // the strategy policy: records its propensity
 import { STRATEGIES, type Projection, type Strategy, project, reward } from "../../../src/strategies";
 import { didRun } from "../../../src/trace"; // stage prop: prints only when a handler REALLY runs
 
@@ -120,8 +120,12 @@ const applyStep = step$({
 //   3. risky? ctx.ui.set("phase","awaiting-approval") +
 //      `decision = await ctx.suspend<ApprovalDecision>({ on: "ApprovalGranted", correlationKey: input.table })`
 //      (rejected → return). The gate's contract is declared in `resumeSchemas` below.
-//   4. strategy = decision?.strategy ?? await chooseStrategy(ctx, {…}) → ctx.run(applyStep) →
-//      recordOutcome. A human's pick is not a policy decision; only a policy's gets a decisionId.
+//   4. const choice: StrategyChoice = decision?.strategy !== undefined
+//        ? { strategy: decision.strategy, chosenByPolicy: false }
+//        : await chooseStrategy(ctx, {…})
+//      → ctx.run(applyStep, { …, strategy: choice.strategy, simulate }) →
+//      recordOutcome(ctx, { …, ...(choice.chosenByPolicy && { decisionId: "strategy" }) }).
+//      A human's pick is not a policy decision; only a policy's gets a decisionId.
 // The approval gate's resume contract. Declared once: listed in `resumeSchemas` so the runtime
 // parses a resume BEFORE appending it (loom ADR 0077) — a wrongly-shaped approval is refused
 // rather than becoming a permanent fold input — and inferred back into the type the runner sees.
@@ -143,7 +147,7 @@ export const migrationGuardFlow = {
   definition: flow$({
     id: "migration-guard",
     name: "Schema Migration Guard",
-    version: "1.0.0",
+    version: "1.1.0",
     inputSchema: MigrationInput,
     outputSchema: MigrationOutput,
     steps: [inspectStep, assessStep, applyStep],

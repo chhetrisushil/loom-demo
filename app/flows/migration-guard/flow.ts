@@ -3,7 +3,7 @@ import { flow$, handler$, step$ } from "@loom/core";
 import type { FlowRunner, RegisteredFlow } from "@loom/workflow-runtime";
 import { z } from "zod";
 import { llm } from "../../../src/llm"; // export const llm — any LlmProvider works (Gemini here)
-import { chooseStrategy } from "../../../src/policy"; // the strategy policy: records its propensity
+import { chooseStrategy, type StrategyChoice } from "../../../src/policy"; // the strategy policy: records its propensity
 import { STRATEGIES, type Projection, type Strategy, project, reward } from "../../../src/strategies";
 import { didRun } from "../../../src/trace"; // stage prop: prints only when a handler REALLY runs
 
@@ -155,9 +155,9 @@ const runner: FlowRunner<In, Out> = async (ctx, input) => {
   // HOW to apply it: the DBA may say. Otherwise a policy decides — recorded with the
   // context it saw and the probability it chose with, so a different policy can be
   // scored against this log later without re-running anything.
-  const choice =
+  const choice: StrategyChoice =
     decision?.strategy !== undefined
-      ? { strategy: decision.strategy }
+      ? { strategy: decision.strategy, chosenByPolicy: false }
       : await chooseStrategy(ctx, { change: input.change, rows: stats.rows, risk: verdict.risk });
 
   ctx.ui.set("phase", "applying");
@@ -173,7 +173,7 @@ const runner: FlowRunner<In, Out> = async (ctx, input) => {
   recordOutcome(ctx, {
     key: choice.strategy,
     score: reward(result),
-    ...(choice.policy !== undefined && { decisionId: "strategy" }),
+    ...(choice.chosenByPolicy && { decisionId: "strategy" }),
   });
 
   const { applied, ...projected } = result;

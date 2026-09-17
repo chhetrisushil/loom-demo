@@ -48,6 +48,8 @@ export async function serveBatch(app: LoomApp, n: number, opts: BatchOptions = {
           payload: { approved: true, approvedBy: "batch" },
         });
         await resumed.waitForCompletion();
+      } else if (state.status !== "completed") {
+        throw new Error(`${executionId} ended with status "${state.status}" before it could be served`);
       }
       ids.push(executionId);
       opts.onProgress?.(i + 1, n);
@@ -126,12 +128,12 @@ export function evaluate(events: readonly EventEnvelope[], policy: Policy<Strate
  * eight-plus-warnings version — keep that for Q&A (`pnpm propensity --verbose`).
  */
 export function headline(r: EvalReport): string {
-  const steps = `  steps evaluated     ${r.evaluated}`;
+  const stepsLine = `  steps evaluated     ${r.evaluated}`;
   if (r.estimatedValue === undefined || r.lift === undefined) {
-    return [steps, "  estimated value     — cannot be estimated (no propensity in the log)", "  lift                —"].join("\n");
+    return [stepsLine, "  estimated value     — cannot be estimated (no propensity in the log)", "  lift                —"].join("\n");
   }
   return [
-    steps,
+    stepsLine,
     `  estimated value     ${r.estimatedValue.toFixed(4)}   (what actually ran: ${r.loggedValue.toFixed(4)})`,
     `  lift                ${r.lift >= 0 ? "+" : ""}${r.lift.toFixed(4)}`,
   ].join("\n");

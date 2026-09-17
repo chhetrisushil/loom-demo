@@ -415,7 +415,8 @@ pnpm propensity
 **SEE:**
 ```
 ▶  48 migrations. The DBA approves but never says HOW — a policy picks the strategy,
-   and writes down how sure it was.
+   and writes down how sure it was. (offline reviewer, no Gemini; the flow, gate and log are real)
+
    48 executions · 48 decisions · 48 carry how-sure-it-was
 
 🔮 PREDICTION: a size-aware policy — one that NEVER RAN — scores higher than what did.
@@ -471,7 +472,8 @@ Gemini's risk verdict render live.
 **DO:** click **Approve**.
 **SEE:** phase → applying → **applied**, green banner.
 
-**DO** (the fork, in the tab): run `orders / add-index` → at the gate click **Explore strategies**.
+**DO** (the fork, in the tab): click **New run** (the Run button is replaced after the first
+execution) → run `orders / add-index` again → at the gate click **Explore strategies**.
 **SEE:** three cards fill in live — each is a real branch with its own execution id — the parent
 stepper above stays at `awaiting-approval`; `spec/online-ddl` is outlined as best. Click **Promote
 (best score)** → a fourth card applies for real; the refs strip shows `main → <commit id>`.
@@ -509,6 +511,8 @@ loom: you write the agent, the kernel gives you durability, observability, and a
   after `pnpm crash` instead of before. Re-run `pnpm crash`, then `pnpm resume`.
 - **`pnpm fork` says *never reached the approval gate*:** the last execution was low-risk;
   `pnpm pitch:reset && pnpm fork` runs a fresh one.
+- **Re-running `pnpm fork` on the same `.data`** upserts the refs and reports a doubled
+  lineage count — run `pnpm pitch:reset` first.
 - **Explore strategies errors with *fork needs a branch registry*:** `../loom` is not on
   `demo/fork-and-propensity`.
 - **`fork needs a branch registry` from a headless script:** the script must call

@@ -34,7 +34,7 @@ describe("decisions that carry their propensity", () => {
     await serveBatch(app, 12, { blind: true, prefix: "B-" });
     const events = await readLog(app, "B-");
     const c = coverage(events);
-    expect(c).toMatchObject({ executions: 12, decisions: 12, withContext: 0, withPropensity: 0, scoredDirectly: 0 });
+    expect(c).toMatchObject({ executions: 12, decisions: 12, withContext: 0, withPropensity: 0, scoredDirectly: 12 });
 
     const r = evaluate(events, sizeAware);
     expect(r.evaluated).toBe(0);

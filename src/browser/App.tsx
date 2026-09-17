@@ -214,6 +214,7 @@ function MigrationView({
             type="button"
             style={{ ...styles.runBtn, background: "#38a169" }}
             onClick={() => onDecide(true)}
+            disabled={exploring}
           >
             Approve
           </button>
@@ -221,6 +222,7 @@ function MigrationView({
             type="button"
             style={{ ...styles.secondaryBtn, background: "#4a5568", color: "#fff" }}
             onClick={() => onDecide(false)}
+            disabled={exploring}
           >
             Reject
           </button>
