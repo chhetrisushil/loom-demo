@@ -16,6 +16,7 @@ export default defineConfig({
   resolve: { conditions: ["require", "default"], dedupe: ["react", "react-dom"] },
   optimizeDeps: {
     include: [
+      "@loom/analytics",
       "@loom/app",
       "@loom/core",
       "@loom/dispatcher",
@@ -25,6 +26,7 @@ export default defineConfig({
       // bundle. This app only uses in-memory storage.
       "@loom/event-runtime/memory",
       "@loom/event-runtime/sequence",
+      "@loom/learning",
       "@loom/llm",
       "@loom/middleware",
       "@loom/projection-runtime",
@@ -40,7 +42,11 @@ export default defineConfig({
       // BOTH trees: 1P plugins live under `plugins/` (ADR 0043), not `packages/`, so a
       // pattern covering only `packages/*/dist` silently stops transforming the renderer and
       // Rollup fails with "useProjection is not exported by …/plugins/renderer-react/dist".
-      include: [/node_modules/, /packages\/.*\/dist/, /plugins\/.*\/dist/],
+      // The browser-safe subpaths (`@loom/event-runtime/memory`, `.../sequence`,
+      // `@loom/snapshot-runtime/memory`) are hand-written CommonJS shims that sit BESIDE
+      // `dist/`, not inside it, so the two dist patterns miss them and Rollup reports
+      // "InMemoryAsyncEventStore is not exported by …/event-runtime/memory.js".
+      include: [/node_modules/, /packages\/.*\/dist/, /plugins\/.*\/dist/, /packages\/[^/]+\/[^/]+\.js$/],
     },
   },
 });

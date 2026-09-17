@@ -2,12 +2,22 @@ import { useProjection } from "@loom/plugin-renderer-react";
 import React, { useCallback, useState } from "react";
 import { migrationGuardFlow } from "../../app/flows/migration-guard/flow";
 import type { LoomApp } from "../config";
+import { BranchBoard } from "./BranchBoard";
+import { LearningPanel } from "./LearningPanel";
 
 // The shape the flow writes to the "ui" surface via ctx.ui.set / ctx.ui.merge.
-interface UiState {
-  phase?: "inspecting" | "assessing" | "awaiting-approval" | "applying" | "applied" | "rejected";
+export interface UiState {
+  phase?: "inspecting" | "assessing" | "awaiting-approval" | "applying" | "applied" | "simulated" | "rejected";
   table?: { name: string; rows: number; sizeGb: number; estLockSeconds: number };
   assessment?: { risk: "low" | "medium" | "high"; rationale: string };
+  apply?: {
+    strategy: string;
+    policy?: { id: string; version: string; propensity: number };
+    applied: boolean;
+    lockSeconds: number;
+    durationMinutes: number;
+    reversible: boolean;
+  };
 }
 
 const CHANGES = ["add-nullable-column", "add-index", "drop-column", "backfill"] as const;
@@ -27,6 +37,7 @@ export function App({ app }: { app: LoomApp }) {
   const [apiKey, setApiKey] = useState("");
   const [executionId, setExecutionId] = useState<string | null>(null);
   const [seq, setSeq] = useState(0); // bumps executionId suffix so each run is fresh
+  const [tab, setTab] = useState<"migration" | "learning">("migration");
 
   const run = useCallback(() => {
     // The presenter can paste a Gemini key to make a REAL call; empty → offline
@@ -52,69 +63,82 @@ export function App({ app }: { app: LoomApp }) {
           Inspect → Gemini rates risk → human gate on risky changes → apply · same flow as the
           headless CLI, only the renderer changed
         </div>
+        <div style={styles.tabs}>
+          <button type="button" style={{ ...styles.tab, ...(tab === "migration" ? styles.tabActive : {}) }} onClick={() => setTab("migration")}>
+            Migration
+          </button>
+          <button type="button" style={{ ...styles.tab, ...(tab === "learning" ? styles.tabActive : {}) }} onClick={() => setTab("learning")}>
+            Learning
+          </button>
+        </div>
       </header>
 
-      <div style={styles.form}>
-        <label style={styles.field}>
-          <span style={styles.label}>Table</span>
-          <input
-            style={styles.input}
-            value={table}
-            onChange={(e) => setTable(e.target.value)}
-            disabled={!!executionId}
-          />
-        </label>
-        <label style={styles.field}>
-          <span style={styles.label}>Migration</span>
-          <select
-            style={styles.input}
-            value={change}
-            onChange={(e) => setChange(e.target.value as Change)}
-            disabled={!!executionId}
-          >
-            {CHANGES.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label style={styles.field}>
-          <span style={styles.label}>Gemini API key (optional)</span>
-          <input
-            style={styles.input}
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            placeholder="empty = offline demo"
-            type="password"
-            disabled={!!executionId}
-          />
-        </label>
-        {executionId ? (
-          <button type="button" style={styles.secondaryBtn} onClick={reset}>
-            New run
-          </button>
-        ) : (
-          <button type="button" style={styles.runBtn} onClick={run}>
-            Run migration
-          </button>
-        )}
-      </div>
+      {tab === "migration" && (
+        <>
+          <div style={styles.form}>
+            <label style={styles.field}>
+              <span style={styles.label}>Table</span>
+              <input
+                style={styles.input}
+                value={table}
+                onChange={(e) => setTable(e.target.value)}
+                disabled={!!executionId}
+              />
+            </label>
+            <label style={styles.field}>
+              <span style={styles.label}>Migration</span>
+              <select
+                style={styles.input}
+                value={change}
+                onChange={(e) => setChange(e.target.value as Change)}
+                disabled={!!executionId}
+              >
+                {CHANGES.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label style={styles.field}>
+              <span style={styles.label}>Gemini API key (optional)</span>
+              <input
+                style={styles.input}
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder="empty = offline demo"
+                type="password"
+                disabled={!!executionId}
+              />
+            </label>
+            {executionId ? (
+              <button type="button" style={styles.secondaryBtn} onClick={reset}>
+                New run
+              </button>
+            ) : (
+              <button type="button" style={styles.runBtn} onClick={run}>
+                Run migration
+              </button>
+            )}
+          </div>
 
-      {executionId && (
-        <MigrationView
-          app={app}
-          executionId={executionId}
-          onDecide={(approved) =>
-            app.runtime
-              .resume(executionId, {
-                eventType: "ApprovalGranted",
-                payload: { approved, approvedBy: "you@demo" },
-              })
-              .catch((err: unknown) => console.error(err))
-          }
-        />
+          {executionId && (
+            <MigrationView
+              app={app}
+              executionId={executionId}
+              onDecide={(approved) =>
+                app.runtime
+                  .resume(executionId, {
+                    eventType: "ApprovalGranted",
+                    payload: { approved, approvedBy: "you@demo" },
+                  })
+                  .catch((err: unknown) => console.error(err))
+              }
+            />
+          )}
+        </>
       )}
+      {tab === "learning" && <LearningPanel app={app} />}
     </div>
   );
 }
@@ -132,12 +156,13 @@ function MigrationView({
   const ui = useProjection<UiState>(app.projectionRuntime, "ui", executionId);
   const phase = ui.phase;
   const activeIdx = PHASES.indexOf(phase);
+  const [exploring, setExploring] = useState(false);
 
   return (
     <div style={styles.panel}>
       <div style={styles.stepper}>
         {PHASES.map((p, i) => {
-          const done = phase === "applied" || (activeIdx > i && phase !== "rejected");
+          const done = phase === "applied" || phase === "simulated" || (activeIdx > i && phase !== "rejected");
           const active = p === phase;
           return (
             <div key={p} style={styles.step}>
@@ -199,10 +224,30 @@ function MigrationView({
           >
             Reject
           </button>
+          <button
+            type="button"
+            style={{ ...styles.secondaryBtn, background: "#2b4c7e", color: "#fff" }}
+            onClick={() => setExploring(true)}
+            disabled={exploring}
+          >
+            Explore strategies
+          </button>
         </div>
       )}
 
-      {phase === "applied" && <div style={styles.banner}>✅ Migration applied.</div>}
+      {exploring && <BranchBoard app={app} parentId={executionId} />}
+
+      {phase === "applied" && ui.apply && (
+        <div style={styles.banner}>
+          ✅ Migration applied via <b>{ui.apply.strategy}</b> — lock {ui.apply.lockSeconds}s, {ui.apply.durationMinutes}m,{" "}
+          {ui.apply.reversible ? "reversible" : "not reversible"}
+          {ui.apply.policy && (
+            <span style={styles.policyTag}>
+              chosen by {ui.apply.policy.id} v{ui.apply.policy.version} · propensity {ui.apply.policy.propensity.toFixed(2)}
+            </span>
+          )}
+        </div>
+      )}
       {phase === "rejected" && (
         <div style={{ ...styles.banner, background: "#3b1c1c", color: "#feb2b2" }}>
           ✋ Migration rejected — nothing was applied.
@@ -231,6 +276,12 @@ const styles: Record<string, React.CSSProperties> = {
   header: { borderBottom: "1px solid #232c3b", paddingBottom: 16, marginBottom: 20 },
   title: { fontSize: 24, fontWeight: 800, color: "#9ecbff" },
   subtitle: { fontSize: 13, color: "#6b7d95", marginTop: 4, maxWidth: 640 },
+  tabs: { display: "flex", gap: 6, marginTop: 12 },
+  tab: { padding: "6px 14px", borderRadius: 8, border: "1px solid #2b3546", background: "#141a24", color: "#a9b7c9", cursor: "pointer", fontSize: 13, fontWeight: 600 },
+  // `border` (not `borderColor`): the base `tab` sets the shorthand, and React warns in
+  // the console when a rerender overrides one with the other.
+  tabActive: { background: "#1f2b3d", color: "#9ecbff", border: "1px solid #3182ce" },
+  policyTag: { display: "block", marginTop: 6, fontSize: 12, color: "#9ecbff", fontWeight: 500 },
   form: {
     display: "flex",
     gap: 12,
