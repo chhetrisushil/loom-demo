@@ -157,6 +157,12 @@ function MigrationView({
   const phase = ui.phase;
   const activeIdx = PHASES.indexOf(phase);
   const [exploring, setExploring] = useState(false);
+  // Set once the board has promoted a commit branch onto `main`. The parent's own phase
+  // never leaves "awaiting-approval" — promotion forks from the gate and moves a ref, it
+  // does not resume the parent — so "this gate has been answered" cannot be read off the
+  // parent's surface. Without this, Approve/Reject would still be offered after promote,
+  // and Approve would resume the parent and apply the migration a second time.
+  const [committed, setCommitted] = useState<string | null>(null);
 
   return (
     <div style={styles.panel}>
@@ -205,7 +211,14 @@ function MigrationView({
         </div>
       )}
 
-      {phase === "awaiting-approval" && (
+      {phase === "awaiting-approval" && committed && (
+        <div style={styles.decidedBar} data-testid="decided-bar">
+          Gate answered on branch <b>commit</b> ({committed}) — <b>main</b> now names the applied migration. The
+          parent stays suspended at the gate with its log untouched; nothing here can apply it a second time.
+        </div>
+      )}
+
+      {phase === "awaiting-approval" && !committed && (
         <div style={styles.approvalBar} data-testid="approval-bar">
           <div style={{ flex: 1, fontSize: 14 }}>
             A human DBA must sign off before this migration is applied.
@@ -237,7 +250,7 @@ function MigrationView({
         </div>
       )}
 
-      {exploring && <BranchBoard app={app} parentId={executionId} />}
+      {exploring && <BranchBoard app={app} parentId={executionId} onPromoted={setCommitted} />}
 
       {phase === "applied" && ui.apply && (
         <div style={styles.banner}>
@@ -367,6 +380,15 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 10,
     background: "#2b210e",
     border: "1px solid #b7791f",
+  },
+  decidedBar: {
+    padding: "12px 18px",
+    borderRadius: 10,
+    background: "#12241a",
+    border: "1px solid #38a169",
+    color: "#c6f6d5",
+    fontSize: 13,
+    lineHeight: 1.5,
   },
   banner: {
     padding: "12px 18px",

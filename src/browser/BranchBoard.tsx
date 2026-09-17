@@ -18,7 +18,16 @@ interface Card {
   label: string;
 }
 
-export function BranchBoard({ app, parentId }: { app: LoomApp; parentId: string }) {
+export function BranchBoard({
+  app,
+  parentId,
+  onPromoted,
+}: {
+  app: LoomApp;
+  parentId: string;
+  /** Fires with the commit branch's executionId once `main` has been moved onto it. */
+  onPromoted?: ((commitExecutionId: string) => void) | undefined;
+}) {
   const started = useRef(false);
   const [gate, setGate] = useState<number | null>(null);
   const [cards, setCards] = useState<Card[]>([]);
@@ -52,6 +61,7 @@ export function BranchBoard({ app, parentId }: { app: LoomApp; parentId: string 
     try {
       const c = await promoteAndApply(app, parentId, gate, strategy);
       setCommit({ strategy, executionId: c.executionId, label: "commit (real apply)" });
+      onPromoted?.(c.executionId);
       setRefList(await refs(app));
       setLineage(await branchCount(app, parentId));
     } catch (e: unknown) {
