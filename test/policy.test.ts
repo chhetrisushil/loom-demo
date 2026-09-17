@@ -6,9 +6,9 @@ const ctx = { change: "add-index", rows: 48_000_000, risk: "high" };
 
 describe("the logging policy (naive-eps v1)", () => {
   it("reports the exact probability it chose with", () => {
-    expect(loggingPolicy.propensityOf("direct-ddl")).toBeCloseTo(0.8, 6);
-    expect(loggingPolicy.propensityOf("online-ddl")).toBeCloseTo(0.1, 6);
-    expect(loggingPolicy.propensityOf("chunked")).toBeCloseTo(0.1, 6);
+    expect(loggingPolicy.propensityOf("direct-ddl")).toBeCloseTo(2 / 3, 6);
+    expect(loggingPolicy.propensityOf("online-ddl")).toBeCloseTo(1 / 6, 6);
+    expect(loggingPolicy.propensityOf("chunked")).toBeCloseTo(1 / 6, 6);
     const sum = STRATEGIES.reduce((s, a) => s + loggingPolicy.propensityOf(a), 0);
     expect(sum).toBeCloseTo(1, 6);
   });

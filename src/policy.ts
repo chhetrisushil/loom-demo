@@ -39,7 +39,7 @@ function mulberry32(seed: number): () => number {
 }
 
 // ── The LIVE policy: ε-greedy around what the flow used to do implicitly ───────
-const EPSILON = 0.3;
+const EPSILON = 0.5;
 const GREEDY: Strategy = "direct-ddl";
 
 export const loggingPolicy: Policy<Strategy> & { propensityOf(action: Strategy): number } = {
