@@ -35,6 +35,24 @@ export function project(rows: number, strategy: Strategy): Projection;   // dete
 export function reward(p: Projection): number;                           // 0..1, higher is better
 ```
 
+The cost model (m = rows in millions; grid-searched so every winner has a margin ≥ 0.026):
+
+| strategy | lock (s) | duration (min) | reversible |
+|---|---|---|---|
+| `direct-ddl` | `m` | `max(1, m/2)` | no |
+| `online-ddl` | `2 + m/20` | `10 + 3m` | yes |
+| `chunked` | `0` | `60 + 8m` | yes |
+
+`reward = 1 − 0.7·min(1, lock/60) − 0.3·min(1, duration/240)`, rounded to 4 places. Resulting
+scores — the winner per row is what the tests pin:
+
+| rows | direct-ddl | online-ddl | chunked |
+|---|---|---|---|
+| 1.2M (add-nullable-column) | **0.985** | 0.959 | 0.913 |
+| 9M (drop-column) | 0.889 | **0.925** | 0.835 |
+| 48M (add-index) | 0.410 | **0.756** | 0.700 |
+| 120M (backfill) | 0.225 | 0.607 | **0.700** |
+
 The cost model is deliberately shaped so the best strategy **depends on table size**:
 
 - `direct-ddl`: one statement, full lock proportional to rows, shortest duration, not reversible.
@@ -111,7 +129,9 @@ choose (that is what feeds the banner in §5).
   are stable. `select` is otherwise pure and cheap, as the `Policy` SPI requires.
 - **Candidates** (pure, deterministic, propensity 1):
   - `size-aware` v2 — `direct-ddl` below 5M rows, `online-ddl` below 100M, `chunked` above.
-  - `always-chunked` — the control; must show a negative lift.
+  - `backwards` v0 — the control: chunks small tables and direct-locks big ones, i.e. exactly
+    the wrong way round. It must show a negative lift. (`always-chunked` was the first idea, but
+    it is genuinely better than today's naive default, so it would show a *positive* lift.)
 - **`chooseStrategy(ctx, context)`** — `decideWithPolicy(ctx, "strategy", loggingPolicy, context,
   STRATEGIES)` when learnable; when the **blind toggle** is on, the same choice through a bare
   `ctx.decide("strategy", () => loggingPolicy.select(context, STRATEGIES).action)` with no
@@ -128,7 +148,7 @@ choose (that is what feeds the banner in §5).
 export interface BranchOutcome { strategy: Strategy; executionId: string; branchName: string; projection: Projection }
 export async function findGate(app, executionId): Promise<number>;            // EXECUTION_SUSPENDED sequence
 export async function exploreStrategies(app, parentId, gateSeq, onBranch?): Promise<BranchOutcome[]>;
-export function pickWinner(outcomes): BranchOutcome;                           // lowest lock, then shortest duration
+export function pickWinner(outcomes): BranchOutcome;                           // highest reward(projection)
 export async function promoteAndApply(app, parentId, gateSeq, winner): Promise<{ commitId, output }>;
 export async function refs(app): Promise<{ name, executionId, tip }[]>;
 ```
@@ -175,6 +195,13 @@ new InMemoryBranchRegistry() }` (all from `@loom/event-runtime`, already a depen
 `memory` preset wires no branch registry. A `memoryStorage()` helper in `src/browser/storage.ts`
 keeps `main.tsx` one line.
 
+**Loom-side prerequisite.** `@loom/event-runtime/memory` (the browser-safe subpath) exports only
+the in-memory event store today; the in-memory branch registry is node-free but reachable only
+through the barrel, which drags SQLite into the bundle. The subpath shim (`memory.js` /
+`memory.d.ts`) gains `InMemoryBranchRegistry`. Loom's rules require a feature branch + PR, so
+this lands on a `demo/fork-and-propensity` branch in `../loom` together with the deck change,
+and the demo's pre-flight notes that loom must be on that branch or have it merged.
+
 ## 4. CLI: two new scripts
 
 ### `pnpm fork` → `src/pitch-fork.ts` (Act 4b, ~2 min)
@@ -185,7 +212,8 @@ keeps `main.tsx` one line.
    `⚡ apply (SIMULATED)` line. Prints a comparison table (strategy · lock · duration ·
    reversible · reward). Proof line: `3 branches, 3 bolts, 0 inspect, 0 assess, 0 model calls`.
 3. Prints the parent's head sequence before and after, and its status — untouched.
-4. `pickWinner`, `promoteAndApply` (one real `⚡ apply (writes to prod)`), then the ref table
+4. `pickWinner` (highest `reward` — one scoring rule shared with the learning demo),
+   `promoteAndApply` (one real `⚡ apply (writes to prod)`), then the ref table
    (`main → <commit id>`, `spec/* → …`) and `children(parent).length` as the alternatives-
    considered audit trail. Closing line names that there is no merge.
 
@@ -195,11 +223,11 @@ Storage: `sqliteStorage({ dir: ".data/learn" })` and `.data/learn-blind`, so the
 stays clean. Forces the offline provider (`delete process.env.GEMINI_API_KEY`, printed as a
 note: the policy decision is not the model call) and `quietTrace(true)`.
 
-1. `serveBatch(40)` → print coverage: `with propensity 40 (100%)`, arms table.
+1. `serveBatch(48)` (12 per change type) → print coverage: `with propensity 48 (100%)`, arms table.
 2. `evaluate(events, sizeAware)` → logged value, SNIPS estimate, lift, effective sample size.
    Line: *"nothing re-ran; the candidate never chose anything."*
-3. `evaluate(events, alwaysChunked)` → negative lift. The estimator can say no.
-4. `serveBatch(40, { blind: true })` into the second dir; `evaluate(blindEvents, sizeAware)` →
+3. `evaluate(events, backwards)` → negative lift. The estimator can say no.
+4. `serveBatch(48, { blind: true })` into the second dir; `evaluate(blindEvents, sizeAware)` →
    `evaluated: 0`, `estimator: agreement-only`. Closing line: *"same executions, same rewards —
    you either wrote the propensity down at the time or you didn't."*
 5. Prints the checkable command: `pnpm exec loom learn report --db .data/learn/events.db`.
@@ -224,9 +252,9 @@ note: the policy decision is not the model call) and `quietTrace(true)`.
 
 ### Learning panel
 
-- **Serve 40 migrations** button → `serveBatch(app, 40, { blind })` with a progress counter;
+- **Serve 48 migrations** button → `serveBatch(app, 48, { blind })` with a progress counter;
   a **log blind** checkbox controls `blind`.
-- After the batch: coverage block, then two report cards (`size-aware v2`, `always-chunked`)
+- After the batch: coverage block, then two report cards (`size-aware v2`, `backwards v0`)
   from `evaluate` + `formatEvalReport` in a `<pre>`. In blind mode the cards read
   `evaluated: 0 · agreement-only`.
 - Each batch uses a fresh executionId prefix (`learn-<n>-`), and reads only its own executions
@@ -258,7 +286,7 @@ log read.
   is 4.
 - `test/learn.test.ts`: `serveBatch(12)` learnable → `coverage.withPropensity === 12`,
   `evaluate(sizeAware).estimator === "snips"`; blind → `withPropensity === 0`, `evaluated === 0`,
-  `estimator === "agreement-only"`. Also: `alwaysChunked` lift < `sizeAware` lift.
+  `estimator === "agreement-only"`. Also: `backwards` estimated value < `sizeAware` estimated value.
 
 ## 7. Docs and deck
 
