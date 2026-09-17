@@ -26,7 +26,7 @@ cd loom-demo
 pnpm install       # links the sibling ../loom packages
 ```
 
-The sibling `../loom` checkout must be on branch `demo/fork-and-propensity` (or have it merged) — it's what exports the in-memory branch registry `pnpm fork` and the UI's Explore-strategies panel need.
+The sibling `../loom` checkout must be at `main` from commit `c1dc581` or later (loom PR #426) — that is what exports the in-memory branch registry the UI's Explore-strategies panel needs.
 
 ## Run it
 

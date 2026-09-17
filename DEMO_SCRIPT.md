@@ -10,8 +10,8 @@ Follow top to bottom. **SAY** = what you tell the room · **DO** = what you run/
 ```bash
 # 0. Layout: this project (loom-demo) sits next to the loom repo and links to it.
 #    Build loom once, off-camera:  cd ../loom && pnpm install && pnpm build
-#    The loom checkout must contain branch demo/fork-and-propensity (or its merge) —
-#    it exports the in-memory branch registry the UI needs.
+#    The loom checkout must be at main ≥ c1dc581 (loom PR #426) — it exports the
+#    in-memory branch registry the UI needs.
 
 # 1. Everything installed & building (run once, off-camera)
 cd /Users/such/workspace/loom-demo
@@ -513,8 +513,8 @@ loom: you write the agent, the kernel gives you durability, observability, and a
   `pnpm pitch:reset && pnpm fork` runs a fresh one.
 - **Re-running `pnpm fork` on the same `.data`** upserts the refs and reports a doubled
   lineage count — run `pnpm pitch:reset` first.
-- **Explore strategies errors with *fork needs a branch registry*:** `../loom` is not on
-  `demo/fork-and-propensity`.
+- **Explore strategies errors with *fork needs a branch registry*:** `../loom` is older than
+  `c1dc581` (loom PR #426) — pull loom `main`.
 - **`fork needs a branch registry` from a headless script:** the script must call
   `sqliteStorage({ dir, branching: true })`.
 
