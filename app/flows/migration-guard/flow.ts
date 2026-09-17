@@ -1,21 +1,33 @@
+import { recordOutcome } from "@loom/analytics";
 import { flow$, handler$, step$ } from "@loom/core";
 import type { FlowRunner, RegisteredFlow } from "@loom/workflow-runtime";
 import { z } from "zod";
-import { llm } from "../../../src/llm";
-import { didRun } from "../../../src/trace"; // stage prop: prints only when a handler REALLY runs // export const llm — any LlmProvider works (Gemini here)
+import { llm } from "../../../src/llm"; // export const llm — any LlmProvider works (Gemini here)
+import { chooseStrategy } from "../../../src/policy"; // the strategy policy: records its propensity
+import { STRATEGIES, type Projection, type Strategy, project, reward } from "../../../src/strategies";
+import { didRun } from "../../../src/trace"; // stage prop: prints only when a handler REALLY runs
 
 // ── Schemas ───────────────────────────────────────────────────────────────────
 const MigrationInput = z.object({
   table: z.string(),
   change: z.enum(["add-nullable-column", "add-index", "drop-column", "backfill"]),
 });
+const ProjectionSchema = z.object({
+  lockSeconds: z.number(),
+  durationMinutes: z.number(),
+  reversible: z.boolean(),
+});
 const MigrationOutput = z.object({
   applied: z.boolean(),
+  simulated: z.boolean(),
   risk: z.enum(["low", "medium", "high"]),
   approvedBy: z.string().optional(),
+  strategy: z.enum(STRATEGIES).optional(),
+  projected: ProjectionSchema.optional(),
 });
 type In = z.infer<typeof MigrationInput>;
 type Out = z.infer<typeof MigrationOutput>;
+export type MigrationResult = Out;
 
 // A tiny simulated catalog so the demo needs no real database — the interesting
 // part is the reasoning + the human gate, not the metrics source.
@@ -80,15 +92,21 @@ const assessStep = step$({
   ),
 });
 
-// 3) EFFECT: apply the migration (simulated).
+// 3) EFFECT: apply the migration one WAY (simulated). `simulate` = dry-run against a
+//    shadow schema: same projection, nothing written — what a forked branch runs.
 const applyStep = step$({
   id: "apply",
   name: "Apply migration",
-  inputSchema: z.object({ table: z.string() }),
-  outputSchema: z.object({ applied: z.boolean() }),
-  handler: handler$(async () => {
-    didRun("apply    (writes to prod)");
-    return { applied: true };
+  inputSchema: z.object({
+    table: z.string(),
+    rows: z.number(),
+    strategy: z.enum(STRATEGIES),
+    simulate: z.boolean(),
+  }),
+  outputSchema: z.object({ applied: z.boolean() }).merge(ProjectionSchema),
+  handler: handler$(async (i: { table: string; rows: number; strategy: Strategy; simulate: boolean }) => {
+    didRun(i.simulate ? `apply    (SIMULATED · ${i.strategy})` : `apply    (writes to prod · ${i.strategy})`);
+    return { applied: !i.simulate, ...project(i.rows, i.strategy) };
   }),
 });
 
@@ -96,7 +114,13 @@ const applyStep = step$({
 // The approval gate's resume contract. Declared once: listed in `resumeSchemas` so the runtime
 // parses a resume BEFORE appending it (loom ADR 0077) — a wrongly-shaped approval is refused
 // rather than becoming a permanent fold input — and inferred back into the type the runner sees.
-const ApprovalDecision = z.object({ approved: z.boolean(), approvedBy: z.string() });
+// The DBA may also say HOW (`strategy`) and whether to only dry-run it (`simulate`).
+const ApprovalDecision = z.object({
+  approved: z.boolean(),
+  approvedBy: z.string(),
+  strategy: z.enum(STRATEGIES).optional(),
+  simulate: z.boolean().optional(),
+});
 type ApprovalDecision = z.infer<typeof ApprovalDecision>;
 
 const runner: FlowRunner<In, Out> = async (ctx, input) => {
@@ -114,29 +138,54 @@ const runner: FlowRunner<In, Out> = async (ctx, input) => {
   ctx.ui.merge("assessment", verdict);
 
   // Low-risk migrations ship straight through; everything else waits for a human.
-  if (verdict.risk === "low") {
-    ctx.ui.set("phase", "applying");
-    await ctx.run(applyStep, { table: input.table });
-    ctx.ui.set("phase", "applied");
-    return { applied: true, risk: verdict.risk };
+  let decision: ApprovalDecision | undefined;
+  if (verdict.risk !== "low") {
+    // Durable human gate — persists to the log and hands control back until resumed.
+    ctx.ui.set("phase", "awaiting-approval");
+    decision = await ctx.suspend<ApprovalDecision>({
+      on: "ApprovalGranted",
+      correlationKey: input.table,
+    });
+    if (!decision.approved) {
+      ctx.ui.set("phase", "rejected");
+      return { applied: false, simulated: false, risk: verdict.risk, approvedBy: decision.approvedBy };
+    }
   }
 
-  // Durable human gate — persists to the log and hands control back until resumed.
-  ctx.ui.set("phase", "awaiting-approval");
-  const decision = await ctx.suspend<ApprovalDecision>({
-    on: "ApprovalGranted",
-    correlationKey: input.table,
-  });
-
-  if (!decision.approved) {
-    ctx.ui.set("phase", "rejected");
-    return { applied: false, risk: verdict.risk, approvedBy: decision.approvedBy };
-  }
+  // HOW to apply it: the DBA may say. Otherwise a policy decides — recorded with the
+  // context it saw and the probability it chose with, so a different policy can be
+  // scored against this log later without re-running anything.
+  const choice =
+    decision?.strategy !== undefined
+      ? { strategy: decision.strategy }
+      : await chooseStrategy(ctx, { change: input.change, rows: stats.rows, risk: verdict.risk });
 
   ctx.ui.set("phase", "applying");
-  await ctx.run(applyStep, { table: input.table });
-  ctx.ui.set("phase", "applied");
-  return { applied: true, risk: verdict.risk, approvedBy: decision.approvedBy };
+  const result = await ctx.run(applyStep, {
+    table: input.table,
+    rows: stats.rows,
+    strategy: choice.strategy,
+    simulate: decision?.simulate ?? false,
+  });
+  ctx.ui.merge("apply", { ...choice, ...result });
+
+  // How it turned out — named after the decision when a policy made it, so credit lands there.
+  recordOutcome(ctx, {
+    key: choice.strategy,
+    score: reward(result),
+    ...(choice.policy !== undefined && { decisionId: "strategy" }),
+  });
+
+  const { applied, ...projected } = result;
+  ctx.ui.set("phase", applied ? "applied" : "simulated");
+  return {
+    applied,
+    simulated: !applied,
+    risk: verdict.risk,
+    ...(decision !== undefined && { approvedBy: decision.approvedBy }),
+    strategy: choice.strategy,
+    projected: projected satisfies Projection,
+  };
 };
 
 // Exported as a bare `RegisteredFlow` — the runtime treats every flow uniformly.
@@ -144,7 +193,7 @@ export const migrationGuardFlow = {
   definition: flow$({
     id: "migration-guard",
     name: "Schema Migration Guard",
-    version: "1.0.0",
+    version: "1.1.0",
     inputSchema: MigrationInput,
     outputSchema: MigrationOutput,
     steps: [inspectStep, assessStep, applyStep],

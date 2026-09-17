@@ -27,7 +27,7 @@ async function main(): Promise<void> {
 
   const resumed = await app.runtime.resume(executionId, {
     eventType: "ApprovalGranted",
-    payload: { approved: true, approvedBy: "ada@example.com" },
+    payload: { approved: true, approvedBy: "ada@example.com", strategy: "direct-ddl" },
   });
   const done = await resumed.waitForCompletion();
 

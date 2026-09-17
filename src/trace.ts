@@ -10,10 +10,11 @@
  * Counting them is the whole proof. Nothing here is imported by the kernel.
  */
 let executed: string[] = [];
+let quiet = false;
 
 export function didRun(label: string): void {
   executed.push(label);
-  console.log(`   ⚡ EXECUTED  ${label}   ← real work: time and money spent`);
+  if (!quiet) console.log(`   ⚡ EXECUTED  ${label}   ← real work: time and money spent`);
 }
 
 export function executedLabels(): readonly string[] {
@@ -22,4 +23,9 @@ export function executedLabels(): readonly string[] {
 
 export function resetTrace(): void {
   executed = [];
+}
+
+/** Keep counting, stop printing — a 48-migration batch would otherwise print 150 lines. */
+export function quietTrace(on: boolean): void {
+  quiet = on;
 }

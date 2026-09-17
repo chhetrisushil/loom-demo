@@ -21,7 +21,7 @@ async function main(): Promise<void> {
   // below would still continue the execution from its durable checkpoint.
   const resumed = await app.runtime.resume(handle.executionId, {
     eventType: "ApprovalGranted",
-    payload: { approved: true, approvedBy: "ada@example.com" },
+    payload: { approved: true, approvedBy: "ada@example.com", strategy: "direct-ddl" },
   });
   const done = await resumed.waitForCompletion();
 

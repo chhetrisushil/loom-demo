@@ -2,24 +2,36 @@
 // Swap this over flow.ts before the talk:  pnpm demo:stub
 // Restore the finished version afterwards:  pnpm demo:restore
 // In Act 2 you type the `runner` body (see DEMO_SCRIPT.md). Everything else is here.
+import { recordOutcome } from "@loom/analytics";
 import { flow$, handler$, step$ } from "@loom/core";
 import type { FlowRunner, RegisteredFlow } from "@loom/workflow-runtime";
 import { z } from "zod";
-import { llm } from "../../../src/llm";
-import { didRun } from "../../../src/trace"; // stage prop: prints only when a handler REALLY runs // export const llm — any LlmProvider works (Gemini here)
+import { llm } from "../../../src/llm"; // export const llm — any LlmProvider works (Gemini here)
+import { chooseStrategy } from "../../../src/policy"; // the strategy policy: records its propensity
+import { STRATEGIES, type Projection, type Strategy, project, reward } from "../../../src/strategies";
+import { didRun } from "../../../src/trace"; // stage prop: prints only when a handler REALLY runs
 
 // ── Schemas ───────────────────────────────────────────────────────────────────
 const MigrationInput = z.object({
   table: z.string(),
   change: z.enum(["add-nullable-column", "add-index", "drop-column", "backfill"]),
 });
+const ProjectionSchema = z.object({
+  lockSeconds: z.number(),
+  durationMinutes: z.number(),
+  reversible: z.boolean(),
+});
 const MigrationOutput = z.object({
   applied: z.boolean(),
+  simulated: z.boolean(),
   risk: z.enum(["low", "medium", "high"]),
   approvedBy: z.string().optional(),
+  strategy: z.enum(STRATEGIES).optional(),
+  projected: ProjectionSchema.optional(),
 });
 type In = z.infer<typeof MigrationInput>;
 type Out = z.infer<typeof MigrationOutput>;
+export type MigrationResult = Out;
 
 // A tiny simulated catalog so the demo needs no real database.
 const ROWS = {
@@ -83,29 +95,43 @@ const assessStep = step$({
   ),
 });
 
-// 3) EFFECT: apply the migration (simulated).
+// 3) EFFECT: apply the migration one WAY (simulated). `simulate` = dry-run against a
+//    shadow schema: same projection, nothing written — what a forked branch runs.
 const applyStep = step$({
   id: "apply",
   name: "Apply migration",
-  inputSchema: z.object({ table: z.string() }),
-  outputSchema: z.object({ applied: z.boolean() }),
-  handler: handler$(async () => {
-    didRun("apply    (writes to prod)");
-    return { applied: true };
+  inputSchema: z.object({
+    table: z.string(),
+    rows: z.number(),
+    strategy: z.enum(STRATEGIES),
+    simulate: z.boolean(),
+  }),
+  outputSchema: z.object({ applied: z.boolean() }).merge(ProjectionSchema),
+  handler: handler$(async (i: { table: string; rows: number; strategy: Strategy; simulate: boolean }) => {
+    didRun(i.simulate ? `apply    (SIMULATED · ${i.strategy})` : `apply    (writes to prod · ${i.strategy})`);
+    return { applied: !i.simulate, ...project(i.rows, i.strategy) };
   }),
 });
 
 // ── Runner: plain async orchestration — this IS the agent, and it drives the UI ──
-// ⌨️  LIVE-CODE THIS in Act 2. The three beats:
+// ⌨️  LIVE-CODE THIS in Act 2. The four beats:
 //   1. inspect → ctx.ui.merge the table stats
 //   2. assess (real Gemini) → ctx.ui.merge the verdict
-//   3. low risk? apply. else ctx.ui.set("phase","awaiting-approval") +
-//      `await ctx.suspend<ApprovalDecision>({ on: "ApprovalGranted", correlationKey: input.table })`,
-//      then apply. The gate's contract is declared in `resumeSchemas` below.
+//   3. risky? ctx.ui.set("phase","awaiting-approval") +
+//      `decision = await ctx.suspend<ApprovalDecision>({ on: "ApprovalGranted", correlationKey: input.table })`
+//      (rejected → return). The gate's contract is declared in `resumeSchemas` below.
+//   4. strategy = decision?.strategy ?? await chooseStrategy(ctx, {…}) → ctx.run(applyStep) →
+//      recordOutcome. A human's pick is not a policy decision; only a policy's gets a decisionId.
 // The approval gate's resume contract. Declared once: listed in `resumeSchemas` so the runtime
 // parses a resume BEFORE appending it (loom ADR 0077) — a wrongly-shaped approval is refused
 // rather than becoming a permanent fold input — and inferred back into the type the runner sees.
-const ApprovalDecision = z.object({ approved: z.boolean(), approvedBy: z.string() });
+// The DBA may also say HOW (`strategy`) and whether to only dry-run it (`simulate`).
+const ApprovalDecision = z.object({
+  approved: z.boolean(),
+  approvedBy: z.string(),
+  strategy: z.enum(STRATEGIES).optional(),
+  simulate: z.boolean().optional(),
+});
 type ApprovalDecision = z.infer<typeof ApprovalDecision>;
 
 const runner: FlowRunner<In, Out> = async (ctx, input) => {
