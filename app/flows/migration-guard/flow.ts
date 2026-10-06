@@ -1,3 +1,4 @@
+import { surface } from "@loom/agent-surface";
 import { recordOutcome } from "@loom/analytics";
 import { flow$, handler$, step$ } from "@loom/core";
 import type { FlowRunner, RegisteredFlow } from "@loom/workflow-runtime";
@@ -124,30 +125,30 @@ const ApprovalDecision = z.object({
 type ApprovalDecision = z.infer<typeof ApprovalDecision>;
 
 const runner: FlowRunner<In, Out> = async (ctx, input) => {
-  ctx.ui.set("phase", "inspecting");
+  surface(ctx).set("phase", "inspecting");
   const stats = await ctx.run(inspectStep, input);
-  ctx.ui.merge("table", { name: input.table, ...stats });
+  surface(ctx).merge("table", { name: input.table, ...stats });
 
-  ctx.ui.set("phase", "assessing");
+  surface(ctx).set("phase", "assessing");
   const verdict = await ctx.run(assessStep, {
     table: input.table,
     change: input.change,
     rows: stats.rows,
     estLockSeconds: stats.estLockSeconds,
   });
-  ctx.ui.merge("assessment", verdict);
+  surface(ctx).merge("assessment", verdict);
 
   // Low-risk migrations ship straight through; everything else waits for a human.
   let decision: ApprovalDecision | undefined;
   if (verdict.risk !== "low") {
     // Durable human gate — persists to the log and hands control back until resumed.
-    ctx.ui.set("phase", "awaiting-approval");
+    surface(ctx).set("phase", "awaiting-approval");
     decision = await ctx.suspend<ApprovalDecision>({
       on: "ApprovalGranted",
       correlationKey: input.table,
     });
     if (!decision.approved) {
-      ctx.ui.set("phase", "rejected");
+      surface(ctx).set("phase", "rejected");
       return { applied: false, simulated: false, risk: verdict.risk, approvedBy: decision.approvedBy };
     }
   }
@@ -160,14 +161,14 @@ const runner: FlowRunner<In, Out> = async (ctx, input) => {
       ? { strategy: decision.strategy, chosenByPolicy: false }
       : await chooseStrategy(ctx, { change: input.change, rows: stats.rows, risk: verdict.risk });
 
-  ctx.ui.set("phase", "applying");
+  surface(ctx).set("phase", "applying");
   const result = await ctx.run(applyStep, {
     table: input.table,
     rows: stats.rows,
     strategy: choice.strategy,
     simulate: decision?.simulate ?? false,
   });
-  ctx.ui.merge("apply", { ...choice, ...result });
+  surface(ctx).merge("apply", { ...choice, ...result });
 
   // How it turned out — named after the decision when a policy made it, so credit lands there.
   recordOutcome(ctx, {
@@ -177,7 +178,7 @@ const runner: FlowRunner<In, Out> = async (ctx, input) => {
   });
 
   const { applied, ...projected } = result;
-  ctx.ui.set("phase", applied ? "applied" : "simulated");
+  surface(ctx).set("phase", applied ? "applied" : "simulated");
   return {
     applied,
     simulated: !applied,

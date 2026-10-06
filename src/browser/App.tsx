@@ -5,7 +5,7 @@ import type { LoomApp } from "../config";
 import { BranchBoard } from "./BranchBoard";
 import { LearningPanel } from "./LearningPanel";
 
-// The shape the flow writes to the "ui" surface via ctx.ui.set / ctx.ui.merge.
+// The shape the flow writes to the "ui" surface via surface(ctx).set / surface(ctx).merge.
 export interface UiState {
   phase?: "inspecting" | "assessing" | "awaiting-approval" | "applying" | "applied" | "simulated" | "rejected";
   table?: { name: string; rows: number; sizeGb: number; estLockSeconds: number };

@@ -2,6 +2,7 @@
 // Swap this over flow.ts before the talk:  pnpm demo:stub
 // Restore the finished version afterwards:  pnpm demo:restore
 // In Act 2 you type the `runner` body (see DEMO_SCRIPT.md). Everything else is here.
+import { surface } from "@loom/agent-surface";
 import { recordOutcome } from "@loom/analytics";
 import { flow$, handler$, step$ } from "@loom/core";
 import type { FlowRunner, RegisteredFlow } from "@loom/workflow-runtime";
@@ -115,9 +116,9 @@ const applyStep = step$({
 
 // ── Runner: plain async orchestration — this IS the agent, and it drives the UI ──
 // ⌨️  LIVE-CODE THIS in Act 2. The four beats:
-//   1. inspect → ctx.ui.merge the table stats
-//   2. assess (real Gemini) → ctx.ui.merge the verdict
-//   3. risky? ctx.ui.set("phase","awaiting-approval") +
+//   1. inspect → surface(ctx).merge the table stats
+//   2. assess (real Gemini) → surface(ctx).merge the verdict
+//   3. risky? surface(ctx).set("phase","awaiting-approval") +
 //      `decision = await ctx.suspend<ApprovalDecision>({ on: "ApprovalGranted", correlationKey: input.table })`
 //      (rejected → return). The gate's contract is declared in `resumeSchemas` below.
 //   4. const choice: StrategyChoice = decision?.strategy !== undefined
