@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@loom/agent-surface':
+        specifier: link:../loom/packages/agent-surface
+        version: link:../loom/packages/agent-surface
       '@loom/analytics':
         specifier: link:../loom/packages/analytics
         version: link:../loom/packages/analytics

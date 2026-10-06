@@ -90,7 +90,7 @@ nothing downstream changes. It resolves the key per call:
 | The event log is the moat | `loom logs` / `loom debug --at N` / `loom inspect` |
 | One brain, two surfaces (`P8`) | `src/main.ts` (terminal) vs `src/browser/` (React), same `buildApp` |
 | Provider-agnostic LLM edge (`P8`) | `src/llm.ts` — Gemini drop-in |
-| Agent-surface updates (not the Google A2UI wire protocol) | `ctx.ui.set/merge` → `useProjection(runtime, "ui", executionId)` |
+| Agent-surface updates (not the Google A2UI wire protocol) | `surface(ctx).set/merge` → `useProjection(runtime, "ui", executionId)` |
 | **Crash-safety, demonstrated not asserted** | `pnpm crash` (SIGKILL) → `pnpm resume` (cold process) |
 | **Fork a live execution, simulate on real state, promote** | `src/fork.ts` → `pnpm fork` · Explore strategies in the tab |
 | **Decisions carry their propensity → counterfactual scoring** | `src/policy.ts` (`decideWithPolicy`) + `src/learn.ts` → `pnpm propensity` · Learning tab |
