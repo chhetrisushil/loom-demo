@@ -1,4 +1,11 @@
-import type { LlmProvider, LlmRequest, LlmResponse } from "@loom/llm";
+import {
+  type LlmCapabilities,
+  type LlmProvider,
+  type LlmRequest,
+  type LlmResponse,
+  assertRequestSupported,
+  textOf,
+} from "@loom/llm";
 
 const DEFAULT_MODEL = "models/gemini-3.6-flash";
 
@@ -10,12 +17,21 @@ const DEFAULT_MODEL = "models/gemini-3.6-flash";
  * Talk track: "I implemented one method, and the flow didn't change a character."
  */
 export class GeminiProvider implements LlmProvider {
+  /**
+   * Text only. loom's own providers declare media through an ALLOWLIST of known
+   * model families (`capabilitiesForModel`) and declare nothing for an unknown model
+   * id or a custom baseUrl. This hand-rolled seam sends only text parts, so it
+   * declares nothing, and `assertRequestSupported` refuses media before any network call.
+   */
+  readonly capabilities: LlmCapabilities = {};
+
   constructor(
     private readonly model: string = DEFAULT_MODEL,
     private readonly apiKey: string = "",
   ) {}
 
   async complete(req: LlmRequest): Promise<LlmResponse> {
+    assertRequestSupported(req, this.capabilities, "GeminiProvider");
     // Accept either "gemini-x" or the API's canonical "models/gemini-x" form.
     const model = this.model.startsWith("models/") ? this.model : `models/${this.model}`;
     const url = `https://generativelanguage.googleapis.com/v1beta/${model}:generateContent?key=${this.apiKey}`;
@@ -27,7 +43,7 @@ export class GeminiProvider implements LlmProvider {
         systemInstruction: req.system ? { parts: [{ text: req.system }] } : undefined,
         contents: req.messages.map((m) => ({
           role: m.role === "assistant" ? "model" : "user",
-          parts: [{ text: m.content }],
+          parts: [{ text: textOf(m.content) }],
         })),
         generationConfig: {
           temperature: req.temperature ?? 0,
@@ -53,7 +69,7 @@ export class GeminiProvider implements LlmProvider {
  */
 export class ScriptedLlmProvider implements LlmProvider {
   async complete(req: LlmRequest): Promise<LlmResponse> {
-    const text = req.messages.map((m) => m.content).join(" ");
+    const text = req.messages.map((m) => textOf(m.content)).join(" ");
     const lock = text.match(/lock (\d+)s/i);
     const lockSeconds = lock ? Number(lock[1]) : 0;
     const risky = /add-index|drop-column|backfill/i.test(text) || lockSeconds > 30;
