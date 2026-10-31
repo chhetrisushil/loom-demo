@@ -4,11 +4,10 @@ type ExecutionState = ReturnType<ExecutionHandle["getState"]>;
 
 /**
  * Wait for the execution to reach its human gate — and *fail loudly* if it never
- * gets there. `waitForSuspend()` alone is a trap for a driver script: when a step
- * fails (or the flow completes without suspending), the runtime settles only
- * `waitForCompletion()`, the suspend promise stays pending forever, Node's event
- * loop drains, and the process exits 0 having printed nothing. Racing the two
- * turns that silent exit into the real error (e.g. a rejected Gemini key).
+ * gets there. When a step fails (or the flow completes without suspending),
+ * `waitForSuspend()` rejects with a generic `ExecutionTerminatedError` (loom ADR
+ * 0135); racing it against `waitForCompletion()` surfaces the real error instead
+ * (e.g. a rejected Gemini key), or says the gate was skipped.
  */
 export function waitForGate(handle: ExecutionHandle): Promise<ExecutionState> {
   return Promise.race([

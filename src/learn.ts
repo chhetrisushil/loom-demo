@@ -40,7 +40,8 @@ export async function serveBatch(app: LoomApp, n: number, opts: BatchOptions = {
       const change = BATCH_CHANGES[i % BATCH_CHANGES.length]!;
       const executionId = `${prefix}${i}`;
       const handle = await app.runtime.start(migrationGuardFlow, { table: "orders", change }, { executionId });
-      // waitForSuspend never settles for a flow that completes, and vice versa — race them.
+      // Race them: a parked flow resolves waitForSuspend, a finished one waitForCompletion
+      // (waitForSuspend then rejects, after the race is decided).
       const state = await Promise.race([handle.waitForSuspend(), handle.waitForCompletion()]);
       if (state.status === "suspended") {
         const resumed = await app.runtime.resume(executionId, {
