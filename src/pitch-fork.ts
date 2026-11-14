@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
-import { sqliteStorage } from "@loom/plugin-sqlite";
+import { sqliteStorage } from "@loomwork/plugin-sqlite";
 import { migrationGuardFlow } from "../app/flows/migration-guard/flow";
 import { buildApp, type LoomApp } from "./config";
 import { branchCount, exploreStrategies, findGate, headOf, pickWinner, promoteAndApply, refs } from "./fork";

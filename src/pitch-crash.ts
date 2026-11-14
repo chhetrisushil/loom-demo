@@ -1,6 +1,6 @@
 import { writeFileSync, mkdirSync } from "node:fs";
 import { migrationGuardFlow } from "../app/flows/migration-guard/flow";
-import { sqliteStorage } from "@loom/plugin-sqlite";
+import { sqliteStorage } from "@loomwork/plugin-sqlite";
 import { buildApp, type LoomApp } from "./config";
 import { executedLabels } from "./trace";
 import { waitForGate } from "./gate";

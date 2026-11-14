@@ -1,5 +1,5 @@
-import { InMemoryAsyncEventStore, InMemoryBranchRegistry } from "@loom/event-runtime/memory";
-import { InMemoryAsyncSnapshotStore } from "@loom/snapshot-runtime/memory";
+import { InMemoryAsyncEventStore, InMemoryBranchRegistry } from "@loomwork/event-runtime/memory";
+import { InMemoryAsyncSnapshotStore } from "@loomwork/snapshot-runtime/memory";
 import type { StorageOpt } from "./config";
 
 /**

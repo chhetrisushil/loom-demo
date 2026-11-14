@@ -1,5 +1,5 @@
 import { rmSync } from "node:fs";
-import { sqliteStorage } from "@loom/plugin-sqlite";
+import { sqliteStorage } from "@loomwork/plugin-sqlite";
 import { buildApp } from "./config";
 import { coverage, evaluate, formatCoverage, formatEvalReport, headline, readLog, serveBatch } from "./learn";
 import { backwards, sizeAware } from "./policy";

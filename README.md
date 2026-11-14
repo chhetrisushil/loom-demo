@@ -70,7 +70,7 @@ pnpm dev                           # → http://localhost:5173
 
 ## The LLM seam (Gemini)
 
-`@loom/llm` ships `AnthropicProvider`, `OpenAiProvider` **and** `GeminiProvider`. This demo
+`@loomwork/llm` ships `AnthropicProvider`, `OpenAiProvider` **and** `GeminiProvider`. This demo
 deliberately hand-rolls its own — a ~40-line `GeminiProvider implements LlmProvider` in
 `src/llm.ts` — because the point is that the seam is one `complete()` method away from any
 backend, and a local one shows that in a file you can open on stage. Use the shipped provider in

@@ -1,5 +1,5 @@
 import { migrationGuardFlow } from "../app/flows/migration-guard/flow";
-import { sqliteStorage } from "@loom/plugin-sqlite";
+import { sqliteStorage } from "@loomwork/plugin-sqlite";
 import { buildApp, type LoomApp } from "./config";
 import { waitForGate } from "./gate";
 

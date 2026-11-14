@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { sqliteStorage } from "@loom/plugin-sqlite";
+import { sqliteStorage } from "@loomwork/plugin-sqlite";
 import { buildApp, type LoomApp } from "./config";
 import { executedLabels } from "./trace";
 

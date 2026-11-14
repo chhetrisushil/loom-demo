@@ -6,7 +6,7 @@
 
 **Architecture:** One new concept, "strategy", enters the flow's approval payload and apply step. Two shared helper modules (`src/fork.ts`, `src/learn.ts`) do the work; `pnpm fork` / `pnpm propensity` print it in the terminal and `BranchBoard` / `LearningPanel` render it in the browser. The policy that picks a strategy records its propensity through `decideWithPolicy`; a module-level "blind" toggle shows what a bare `ctx.decide` costs.
 
-**Tech Stack:** TypeScript 5 (strict, `exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`), Loom kernel via `link:../loom/packages/*` (`@loom/workflow-runtime` fork API, `@loom/learning`, `@loom/analytics`), zod, vitest, React 18 + Vite, SQLite via `@loom/plugin-sqlite`.
+**Tech Stack:** TypeScript 5 (strict, `exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`), Loom kernel via `link:../loom/packages/*` (`@loomwork/workflow-runtime` fork API, `@loomwork/learning`, `@loomwork/analytics`), zod, vitest, React 18 + Vite, SQLite via `@loomwork/plugin-sqlite`.
 
 **Spec:** `docs/superpowers/specs/2026-09-17-fork-and-propensity-demos-design.md` — read it first.
 
@@ -61,12 +61,12 @@
 In `package.json` `dependencies`, add (keep alphabetical order):
 
 ```json
-    "@loom/analytics": "link:../loom/packages/analytics",
-    "@loom/learning": "link:../loom/packages/learning",
+    "@loomwork/analytics": "link:../loom/packages/analytics",
+    "@loomwork/learning": "link:../loom/packages/learning",
 ```
 
 Run: `pnpm install`
-Expected: completes; `ls node_modules/@loom/learning/dist/index.js` exists.
+Expected: completes; `ls node_modules/@loomwork/learning/dist/index.js` exists.
 
 - [ ] **Step 2: Write the failing test**
 
@@ -199,7 +199,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 - Test: `test/policy.test.ts`
 
 **Interfaces:**
-- Consumes: `STRATEGIES`, `Strategy` from Task 1; `decideWithPolicy`, `Policy`, `PolicyContext` from `@loom/learning`; `WorkflowContext` from `@loom/workflow-runtime`.
+- Consumes: `STRATEGIES`, `Strategy` from Task 1; `decideWithPolicy`, `Policy`, `PolicyContext` from `@loomwork/learning`; `WorkflowContext` from `@loomwork/workflow-runtime`.
 - Produces: `type StrategyContext = { change: string; rows: number; risk: string }`; `loggingPolicy: Policy<Strategy> & { propensityOf(a: Strategy): number }`; `sizeAware: Policy<Strategy>`; `backwards: Policy<Strategy>`; `chooseStrategy(ctx, context): Promise<StrategyChoice>` where `interface StrategyChoice { strategy: Strategy; policy?: { id: string; version: string; propensity: number } }`; `setBlind(on: boolean)`, `isBlind()`, `resetPolicySeed()`.
 
 - [ ] **Step 1: Write the failing test**
@@ -264,9 +264,9 @@ Expected: FAIL — `Cannot find module '../src/policy'`.
 Create `src/policy.ts`:
 
 ```ts
-import { decideWithPolicy } from "@loom/learning";
-import type { Policy, PolicyContext } from "@loom/learning";
-import type { WorkflowContext } from "@loom/workflow-runtime";
+import { decideWithPolicy } from "@loomwork/learning";
+import type { Policy, PolicyContext } from "@loomwork/learning";
+import type { WorkflowContext } from "@loomwork/workflow-runtime";
 import { STRATEGIES, type Strategy } from "./strategies";
 
 // ── Decisions that carry their propensity (ADR 0079 / 0080) ───────────────────
@@ -647,9 +647,9 @@ export function quietTrace(on: boolean): void {
 Replace `app/flows/migration-guard/flow.ts` with:
 
 ```ts
-import { recordOutcome } from "@loom/analytics";
-import { flow$, handler$, step$ } from "@loom/core";
-import type { FlowRunner, RegisteredFlow } from "@loom/workflow-runtime";
+import { recordOutcome } from "@loomwork/analytics";
+import { flow$, handler$, step$ } from "@loomwork/core";
+import type { FlowRunner, RegisteredFlow } from "@loomwork/workflow-runtime";
 import { z } from "zod";
 import { llm } from "../../../src/llm"; // export const llm — any LlmProvider works (Gemini here)
 import { chooseStrategy } from "../../../src/policy"; // the strategy policy: records its propensity
@@ -945,7 +945,7 @@ export * from "./dist/InMemoryBranchRegistry";
 Verify from the demo:
 
 ```bash
-cd ../loom-demo && node -e 'console.log(Object.keys(require("@loom/event-runtime/memory")))'
+cd ../loom-demo && node -e 'console.log(Object.keys(require("@loomwork/event-runtime/memory")))'
 ```
 Expected: includes `InMemoryAsyncEventStore` and `InMemoryBranchRegistry`.
 
@@ -965,8 +965,8 @@ cd ../loom-demo
 Create `src/memory-storage.ts`:
 
 ```ts
-import { InMemoryAsyncEventStore, InMemoryBranchRegistry } from "@loom/event-runtime/memory";
-import { InMemoryAsyncSnapshotStore } from "@loom/snapshot-runtime/memory";
+import { InMemoryAsyncEventStore, InMemoryBranchRegistry } from "@loomwork/event-runtime/memory";
+import { InMemoryAsyncSnapshotStore } from "@loomwork/snapshot-runtime/memory";
 import type { StorageOpt } from "./config";
 
 /**
@@ -1111,7 +1111,7 @@ Expected: FAIL — `Cannot find module '../src/fork'`.
 - [ ] **Step 3: Implement `src/fork.ts`**
 
 ```ts
-import type { BranchRef, BranchRegistry } from "@loom/event-runtime";
+import type { BranchRef, BranchRegistry } from "@loomwork/event-runtime";
 import { type MigrationResult, migrationGuardFlow } from "../app/flows/migration-guard/flow";
 import type { LoomApp } from "./config";
 import { type Projection, STRATEGIES, type Strategy, reward } from "./strategies";
@@ -1275,7 +1275,7 @@ Create `src/pitch-fork.ts`:
 
 ```ts
 import { existsSync, readFileSync } from "node:fs";
-import { sqliteStorage } from "@loom/plugin-sqlite";
+import { sqliteStorage } from "@loomwork/plugin-sqlite";
 import { migrationGuardFlow } from "../app/flows/migration-guard/flow";
 import { buildApp, type LoomApp } from "./config";
 import { branchCount, exploreStrategies, findGate, headOf, pickWinner, promoteAndApply, refs } from "./fork";
@@ -1517,8 +1517,8 @@ Expected: FAIL — `Cannot find module '../src/learn'`.
 - [ ] **Step 3: Implement `src/learn.ts`**
 
 ```ts
-import type { EventEnvelope } from "@loom/core";
-import { type EvalReport, type Policy, evaluatePolicy, steps, trajectories } from "@loom/learning";
+import type { EventEnvelope } from "@loomwork/core";
+import { type EvalReport, type Policy, evaluatePolicy, steps, trajectories } from "@loomwork/learning";
 import { migrationGuardFlow } from "../app/flows/migration-guard/flow";
 import type { LoomApp } from "./config";
 import { resetPolicySeed, setBlind } from "./policy";
@@ -1528,10 +1528,10 @@ import type { Strategy } from "./strategies";
 //
 // Serve real traffic through the live policy, then read the log back the way an
 // offline job would and ask: "what would a DIFFERENT policy have scored?" — without
-// running it. `@loom/learning` does the maths (trajectories + SNIPS); this module
+// running it. `@loomwork/learning` does the maths (trajectories + SNIPS); this module
 // only drives the flow and shapes the numbers. Both surfaces call exactly this.
 
-export { formatEvalReport } from "@loom/learning";
+export { formatEvalReport } from "@loomwork/learning";
 
 export const BATCH_CHANGES = ["add-nullable-column", "drop-column", "add-index", "backfill"] as const;
 
@@ -1697,7 +1697,7 @@ Create `src/pitch-propensity.ts`:
 
 ```ts
 import { rmSync } from "node:fs";
-import { sqliteStorage } from "@loom/plugin-sqlite";
+import { sqliteStorage } from "@loomwork/plugin-sqlite";
 import { buildApp } from "./config";
 import { coverage, evaluate, formatCoverage, formatEvalReport, headline, readLog, serveBatch } from "./learn";
 import { backwards, sizeAware } from "./policy";
@@ -1826,7 +1826,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 Replace the `buildApp` line in `src/browser/main.tsx`:
 
 ```tsx
-import { LoomProvider } from "@loom/plugin-renderer-react";
+import { LoomProvider } from "@loomwork/plugin-renderer-react";
 import { createRoot } from "react-dom/client";
 import { buildApp } from "../config";
 import { memoryStorage } from "../memory-storage";
@@ -1851,8 +1851,8 @@ createRoot(root).render(
 In `vite.config.ts` `optimizeDeps.include`, add (alphabetical):
 
 ```ts
-      "@loom/analytics",
-      "@loom/learning",
+      "@loomwork/analytics",
+      "@loomwork/learning",
 ```
 
 - [ ] **Step 2: The branch board**
@@ -1860,8 +1860,8 @@ In `vite.config.ts` `optimizeDeps.include`, add (alphabetical):
 Create `src/browser/BranchBoard.tsx`:
 
 ```tsx
-import type { BranchRef } from "@loom/event-runtime";
-import { useProjection } from "@loom/plugin-renderer-react";
+import type { BranchRef } from "@loomwork/event-runtime";
+import { useProjection } from "@loomwork/plugin-renderer-react";
 import React, { useEffect, useRef, useState } from "react";
 import type { LoomApp } from "../config";
 import { type BranchOutcome, branchCount, exploreStrategies, findGate, pickWinner, promoteAndApply, refs } from "../fork";

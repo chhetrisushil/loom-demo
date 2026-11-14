@@ -1,4 +1,4 @@
-import type { BranchRef, BranchRegistry } from "@loom/event-runtime";
+import type { BranchRef, BranchRegistry } from "@loomwork/event-runtime";
 import type { MigrationResult } from "../app/flows/migration-guard/flow";
 import type { LoomApp } from "./config";
 import { type Projection, STRATEGIES, type Strategy, reward } from "./strategies";

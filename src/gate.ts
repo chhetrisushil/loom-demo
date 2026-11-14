@@ -1,4 +1,4 @@
-import type { ExecutionHandle } from "@loom/workflow-runtime";
+import type { ExecutionHandle } from "@loomwork/workflow-runtime";
 
 type ExecutionState = ReturnType<ExecutionHandle["getState"]>;
 

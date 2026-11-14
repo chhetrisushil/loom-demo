@@ -8,52 +8,52 @@ importers:
 
   .:
     dependencies:
-      '@loom/agent-surface':
+      '@loomwork/agent-surface':
         specifier: link:../loom/packages/agent-surface
         version: link:../loom/packages/agent-surface
-      '@loom/analytics':
+      '@loomwork/analytics':
         specifier: link:../loom/packages/analytics
         version: link:../loom/packages/analytics
-      '@loom/app':
+      '@loomwork/app':
         specifier: link:../loom/packages/app
         version: link:../loom/packages/app
-      '@loom/core':
+      '@loomwork/core':
         specifier: link:../loom/packages/core
         version: link:../loom/packages/core
-      '@loom/dispatcher':
+      '@loomwork/dispatcher':
         specifier: link:../loom/packages/dispatcher
         version: link:../loom/packages/dispatcher
-      '@loom/effect-runtime':
+      '@loomwork/effect-runtime':
         specifier: link:../loom/packages/effect-runtime
         version: link:../loom/packages/effect-runtime
-      '@loom/event-runtime':
+      '@loomwork/event-runtime':
         specifier: link:../loom/packages/event-runtime
         version: link:../loom/packages/event-runtime
-      '@loom/learning':
+      '@loomwork/learning':
         specifier: link:../loom/packages/learning
         version: link:../loom/packages/learning
-      '@loom/llm':
+      '@loomwork/llm':
         specifier: link:../loom/packages/llm
         version: link:../loom/packages/llm
-      '@loom/middleware':
+      '@loomwork/middleware':
         specifier: link:../loom/packages/middleware
         version: link:../loom/packages/middleware
-      '@loom/plugin-renderer-react':
+      '@loomwork/plugin-renderer-react':
         specifier: link:../loom/plugins/renderer-react
         version: link:../loom/plugins/renderer-react
-      '@loom/plugin-sqlite':
+      '@loomwork/plugin-sqlite':
         specifier: link:../loom/plugins/sqlite
         version: link:../loom/plugins/sqlite
-      '@loom/projection-runtime':
+      '@loomwork/projection-runtime':
         specifier: link:../loom/packages/projection-runtime
         version: link:../loom/packages/projection-runtime
-      '@loom/snapshot-runtime':
+      '@loomwork/snapshot-runtime':
         specifier: link:../loom/packages/snapshot-runtime
         version: link:../loom/packages/snapshot-runtime
-      '@loom/worker-runtime-local':
+      '@loomwork/worker-runtime-local':
         specifier: link:../loom/packages/worker-runtime-local
         version: link:../loom/packages/worker-runtime-local
-      '@loom/workflow-runtime':
+      '@loomwork/workflow-runtime':
         specifier: link:../loom/packages/workflow-runtime
         version: link:../loom/packages/workflow-runtime
       react:
@@ -66,10 +66,10 @@ importers:
         specifier: ^3.23.8
         version: 3.25.76
     devDependencies:
-      '@loom/cli':
+      '@loomwork/cli':
         specifier: link:../loom/tools/cli
         version: link:../loom/tools/cli
-      '@loom/testing':
+      '@loomwork/testing':
         specifier: link:../loom/tools/testing
         version: link:../loom/tools/testing
       '@types/node':
