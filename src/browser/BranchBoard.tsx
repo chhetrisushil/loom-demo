@@ -1,5 +1,5 @@
-import type { BranchRef } from "@loom/event-runtime";
-import { useProjection } from "@loom/plugin-renderer-react";
+import type { BranchRef } from "@loomwork/event-runtime";
+import { useProjection } from "@loomwork/plugin-renderer-react";
 import React, { useEffect, useRef, useState } from "react";
 import type { LoomApp } from "../config";
 import { type BranchOutcome, branchCount, exploreStrategies, findGate, pickWinner, promoteAndApply, refs } from "../fork";

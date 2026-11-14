@@ -5,7 +5,7 @@ import {
   type LlmResponse,
   assertRequestSupported,
   textOf,
-} from "@loom/llm";
+} from "@loomwork/llm";
 
 const DEFAULT_MODEL = "models/gemini-3.6-flash";
 

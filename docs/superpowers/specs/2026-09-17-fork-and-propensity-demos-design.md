@@ -105,7 +105,7 @@ ctx.ui.set("phase", result.applied ? "applied" : "simulated");
 return { applied: result.applied, simulated: !result.applied, risk: verdict.risk, approvedBy: decision?.approvedBy, strategy, ...projection };
 ```
 
-`chooseStrategy` lives in `src/policy.ts` (§2) and wraps `decideWithPolicy` from `@loom/learning`.
+`chooseStrategy` lives in `src/policy.ts` (§2) and wraps `decideWithPolicy` from `@loomwork/learning`.
 The `decisionId` is only attached when the policy chose — a human's pick is not a policy decision
 and must not be scored as one.
 
@@ -172,7 +172,7 @@ export async function serveBatch(app, n, opts: { blind: boolean; onProgress? }):
 export async function readLog(app): Promise<EventEnvelope[]>;               // listExecutions + read
 export function coverage(events): CoverageReport;                          // same numbers as `loom learn report`
 export function evaluate(events, policy): EvalReport;                      // trajectories + evaluatePolicy
-export function formatCoverage(c): string; export { formatEvalReport } from "@loom/learning";
+export function formatCoverage(c): string; export { formatEvalReport } from "@loomwork/learning";
 ```
 
 - `serveBatch` cycles the four change types (`orders`, `add-nullable-column` → … ) `n` times,
@@ -191,11 +191,11 @@ Gains `quietTrace(boolean)`. The batch would otherwise print ~120 lightning line
 
 `buildApp` unchanged. `src/browser/main.tsx` builds storage as `{ kind: "custom", eventStore:
 new InMemoryAsyncEventStore(), snapshotStore: new InMemoryAsyncSnapshotStore(), branchRegistry:
-new InMemoryBranchRegistry() }` (all from `@loom/event-runtime`, already a dependency) — the
+new InMemoryBranchRegistry() }` (all from `@loomwork/event-runtime`, already a dependency) — the
 `memory` preset wires no branch registry. A `memoryStorage()` helper in `src/browser/storage.ts`
 keeps `main.tsx` one line.
 
-**Loom-side prerequisite.** `@loom/event-runtime/memory` (the browser-safe subpath) exports only
+**Loom-side prerequisite.** `@loomwork/event-runtime/memory` (the browser-safe subpath) exports only
 the in-memory event store today; the in-memory branch registry is node-free but reachable only
 through the barrel, which drags SQLite into the bundle. The subpath shim (`memory.js` /
 `memory.d.ts`) gains `InMemoryBranchRegistry`. Loom's rules require a feature branch + PR, so

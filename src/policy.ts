@@ -1,6 +1,6 @@
-import { decideWithPolicy } from "@loom/learning";
-import type { Policy, PolicyContext } from "@loom/learning";
-import type { WorkflowContext } from "@loom/workflow-runtime";
+import { decideWithPolicy } from "@loomwork/learning";
+import type { Policy, PolicyContext } from "@loomwork/learning";
+import type { WorkflowContext } from "@loomwork/workflow-runtime";
 import { STRATEGIES, type Strategy } from "./strategies";
 
 // ── Decisions that carry their propensity (ADR 0079 / 0080) ───────────────────

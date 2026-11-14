@@ -1,5 +1,5 @@
-import type { EventEnvelope } from "@loom/core";
-import { type EvalReport, type Policy, evaluatePolicy, steps, trajectories } from "@loom/learning";
+import type { EventEnvelope } from "@loomwork/core";
+import { type EvalReport, type Policy, evaluatePolicy, steps, trajectories } from "@loomwork/learning";
 import { migrationGuardFlow } from "../app/flows/migration-guard/flow";
 import type { LoomApp } from "./config";
 import { resetPolicySeed, setBlind } from "./policy";
@@ -9,10 +9,10 @@ import type { Strategy } from "./strategies";
 //
 // Serve real traffic through the live policy, then read the log back the way an
 // offline job would and ask: "what would a DIFFERENT policy have scored?" — without
-// running it. `@loom/learning` does the maths (trajectories + SNIPS); this module
+// running it. `@loomwork/learning` does the maths (trajectories + SNIPS); this module
 // only drives the flow and shapes the numbers. Both surfaces call exactly this.
 
-export { formatEvalReport } from "@loom/learning";
+export { formatEvalReport } from "@loomwork/learning";
 
 export const BATCH_CHANGES = ["add-nullable-column", "drop-column", "add-index", "backfill"] as const;
 

@@ -113,7 +113,7 @@ Point at the three steps as you name them:
 **DO:** type the `runner` (narrate each loom concept as it lands):
 
 ```typescript
-// (`import { surface } from "@loom/agent-surface"` is already in the stub too.)
+// (`import { surface } from "@loomwork/agent-surface"` is already in the stub too.)
 // The gate's contract — already in the stub, alongside `resumeSchemas` on the flow below it.
 // The DBA may also say HOW (`strategy`) and whether to only dry-run it (`simulate`).
 const ApprovalDecision = z.object({

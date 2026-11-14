@@ -1,7 +1,7 @@
-import { surface } from "@loom/agent-surface";
-import { recordOutcome } from "@loom/analytics";
-import { flow$, handler$, step$ } from "@loom/core";
-import type { FlowRunner, RegisteredFlow } from "@loom/workflow-runtime";
+import { surface } from "@loomwork/agent-surface";
+import { recordOutcome } from "@loomwork/analytics";
+import { flow$, handler$, step$ } from "@loomwork/core";
+import type { FlowRunner, RegisteredFlow } from "@loomwork/workflow-runtime";
 import { z } from "zod";
 import { llm } from "../../../src/llm"; // export const llm — any LlmProvider works (Gemini here)
 import { chooseStrategy, type StrategyChoice } from "../../../src/policy"; // the strategy policy: records its propensity
